@@ -1,0 +1,45 @@
+ktor:
+  development: true
+  application:
+    modules:
+      - moe.tabidachi.meadow.plugins.DIKt.configureDI
+      - moe.tabidachi.meadow.plugins.SecurityKt.configureSecurity
+      - moe.tabidachi.meadow.plugins.CORSKt.configureCORS
+      - moe.tabidachi.meadow.plugins.MonitoringKt.configureMonitoring
+      - moe.tabidachi.meadow.plugins.RoutingKt.configureRouting
+      - moe.tabidachi.meadow.plugins.SerializationKt.configureSerialization
+      - moe.tabidachi.meadow.plugins.SocketsKt.configureSockets
+      - moe.tabidachi.meadow.plugins.StatusPagesKt.configureStatusPages
+  deployment:
+    port: 8080
+
+jwt:
+  name: "jwt-auth"
+  domain: "https://example.com/"
+  audience: "example.com"
+  realm: "example"
+  secret: "114514"
+  issuer: "issuer"
+
+database:
+  main:
+    url: "jdbc:postgresql://host.docker.internal:5440/meadow"
+    user: username
+    driver: org.postgresql.Driver
+    password: password
+  test:
+    url: "jdbc:h2:file:./.idea/h2/meadow"
+    user: root
+    driver: org.h2.Driver
+    password: ""
+
+argon2:
+  iterations: 36
+  memory: 65536
+  parallelism: 1
+
+minio:
+  host: ""
+  port: 9000
+  access_key: ""
+  secret_key: ""
