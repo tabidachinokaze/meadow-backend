@@ -1,14 +1,19 @@
 package moe.tabidachi.meadow.database.table
 
+import moe.tabidachi.meadow.database.model.SystemRole
 import org.jetbrains.exposed.v1.core.dao.id.LongIdTable
 import org.jetbrains.exposed.v1.datetime.timestamp
 
 object UserTable : LongIdTable(name = "user") {
     val username = varchar("username", 32).uniqueIndex()
     val password = varchar("password", 128)
-    val email = varchar("email", 254).uniqueIndex().nullable()
+    val email = varchar("email", 254).uniqueIndex()
     val phone = varchar("phone", 16).uniqueIndex().nullable()
-    val avatar = text("avatar").nullable()
-    val createTime = timestamp("create_time")
-    val updateTime = timestamp("update_time")
+    val avatarUrl = text("avatar_url").nullable()
+    val gameId = varchar("game_id", 64).uniqueIndex()
+    val role = enumeration<SystemRole>("role").default(SystemRole.USER)
+    val isActive = bool("is_active").default(true)
+    val lastLogin = timestamp("last_login").nullable()
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
 }

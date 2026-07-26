@@ -8,6 +8,8 @@ logback = "1.5.35"
 postgresql = "42.7.11"
 argon2 = "2.12"
 s3 = "1.6.106"
+resend = "v4.17.0"
+kedis = "0.0.13"
 
 [libraries]
 # exposed
@@ -29,6 +31,8 @@ koin-loggerSlf4j = { module = "io.insert-koin:koin-logger-slf4j", version.ref = 
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 argon2-jvm = { module = "de.mkammerer:argon2-jvm", version.ref = "argon2" }
 s3 = { module = "aws.sdk.kotlin:s3", version.ref = "s3" }
+resend-java = { module = "com.resend:resend-java", version.ref = "resend" }
+kedis = { module = "io.github.domgew:kedis", version.ref = "kedis" }
 
 [bundles]
 exposed = [

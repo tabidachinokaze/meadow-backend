@@ -3,7 +3,6 @@ package moe.tabidachi.meadow.service
 import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.repository.UserRelationRepository
 import moe.tabidachi.meadow.repository.UserRepository
-import moe.tabidachi.meadow.model.Response
 
 class UserServiceImpl(
     private val userRepository: UserRepository,
@@ -17,12 +16,7 @@ class UserServiceImpl(
             val sensitiveUserInfo = if (self) {
                 userInfo
             } else {
-                userInfo.copy(
-                    email = null,
-                    phone = null,
-                    createTime = null,
-                    updateTime = null
-                )
+                userInfo.desensitize()
             }
             CommonStatusCode.SUCCESS.withData(sensitiveUserInfo)
         }

@@ -4,6 +4,13 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+ktor {
+    openApi {
+        enabled = true
+        codeInferenceEnabled = true
+    }
+}
+
 group = "moe.tabidachi"
 version = "1.0.0-SNAPSHOT"
 
@@ -29,6 +36,10 @@ dependencies {
     implementation(ktorLibs.server.sse)
     implementation(ktorLibs.server.statusPages)
     implementation(ktorLibs.server.websockets)
+    implementation(ktorLibs.server.rateLimit)
+    implementation(ktorLibs.server.swagger)
+    implementation(ktorLibs.server.routingOpenapi)
+    implementation(ktorLibs.server.doubleReceive)
     implementation(libs.bundles.exposed)
     implementation(libs.h2database.h2)
     implementation(libs.h2database.r2dbc)
@@ -38,6 +49,8 @@ dependencies {
     implementation(libs.postgresql)
     implementation(libs.argon2.jvm)
     implementation(libs.s3)
+    implementation(libs.kedis)
+    implementation(libs.resend.java)
 
     testImplementation(kotlin("test"))
     testImplementation(ktorLibs.server.testHost)

@@ -10,13 +10,17 @@ import moe.tabidachi.meadow.model.UserInfo
 import moe.tabidachi.meadow.security.Encryptor
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 interface UserRepository {
     suspend fun getByEmail(email: String): User?
     suspend fun getByUsername(username: String): User?
-    suspend fun create(username: String, email: String, password: String): Long
+    suspend fun getByGameId(gameId: String): User?
+    suspend fun create(username: String, email: String, password: String, gameId: String): Long
     suspend fun getUserInfo(uid: Long): UserInfo?
+    suspend fun updateLastLogin(uid: Long, time: Instant = Clock.System.now()): Instant?
 }
 
 class UserRepositoryImpl(
@@ -35,14 +39,23 @@ class UserRepositoryImpl(
             ?.let(UserMapper::toUser)
     }
 
-    override suspend fun create(username: String, email: String, password: String): Long =
+    override suspend fun getByGameId(gameId: String): User? = database.withTransaction {
+        UserEntity.find { UserTable.gameId.eq(gameId) }
+            .singleOrNull()
+            ?.let(UserMapper::toUser)
+    }
+
+    override suspend fun create(username: String, email: String, password: String, gameId: String): Long =
         database.withTransaction {
             val entity = UserEntity.new {
                 this.username = username
                 this.email = email
                 this.password = encryptor.hash(password.toCharArray())
-                this.createTime = Clock.System.now()
-                this.updateTime = Clock.System.now()
+                this.gameId = gameId
+                val now = Clock.System.now()
+                this.lastLogin = now
+                this.createdAt = now
+                this.updatedAt = now
             }
             entity.id.value
         }
@@ -51,5 +64,12 @@ class UserRepositoryImpl(
         UserEntity.find { UserTable.id.eq(uid) }
             .singleOrNull()
             ?.let(UserMapper::toUserInfo)
+    }
+
+    override suspend fun updateLastLogin(uid: Long, time: Instant): Instant? = database.withTransaction {
+        val updateCount = UserTable.update({ UserTable.id.eq(uid) }) {
+            it[lastLogin] = time
+        }
+        if (updateCount > 0) time else null
     }
 }

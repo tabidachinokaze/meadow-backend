@@ -12,7 +12,11 @@ class UserEntity(uid: EntityID<Long>) : LongEntity(uid) {
     var password by UserTable.password
     var email by UserTable.email
     var phone by UserTable.phone
-    var avatar by UserTable.avatar
-    var createTime by UserTable.createTime
-    var updateTime by UserTable.updateTime
+    var avatarUrl by UserTable.avatarUrl
+    var gameId by UserTable.gameId
+    var role by UserTable.role
+    var isActive by UserTable.isActive
+    var lastLogin by UserTable.lastLogin
+    var createdAt by UserTable.createdAt
+    var updatedAt by UserTable.updatedAt
 }

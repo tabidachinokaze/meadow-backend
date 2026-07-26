@@ -13,6 +13,7 @@ enum class CommonStatusCode(
     PARAM_ERROR(40000, "请求参数校验失败"),
     UNAUTHORIZED(40101, "请先登录或 Token 已失效"),
     FORBIDDEN(40102, "没有权限访问该资源"),
+    NOT_FOUND(40103, "资源不存在"),
     INTERNAL_SERVER_ERROR(50000, "系统繁忙，请稍后再试")
 }
 
@@ -33,6 +34,9 @@ enum class UserStatusCode(
     SIGN_UP_FAILURE(40210, "注册失败"),
     LOGIN_SUCCESS(40211, "登录成功"),
     LOGIN_FAILURE(40212, "登录失败"),
+    GAME_ID_EXISTS(40213, "游戏ID已被占用"),
+    VERIFICATION_CODE_ERROR(40214, "验证码错误"),
+    VERIFICATION_CODE_EXPIRED(40215, "验证码已过期"),
 }
 
 // 验证错误状态码 (03)

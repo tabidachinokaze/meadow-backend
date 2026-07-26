@@ -6,6 +6,7 @@ ktor:
       - moe.tabidachi.meadow.plugins.SecurityKt.configureSecurity
       - moe.tabidachi.meadow.plugins.CORSKt.configureCORS
       - moe.tabidachi.meadow.plugins.MonitoringKt.configureMonitoring
+      - moe.tabidachi.meadow.plugins.RateLimitKt.configureRateLimit
       - moe.tabidachi.meadow.plugins.RoutingKt.configureRouting
       - moe.tabidachi.meadow.plugins.SerializationKt.configureSerialization
       - moe.tabidachi.meadow.plugins.SocketsKt.configureSockets
@@ -38,8 +39,17 @@ argon2:
   memory: 65536
   parallelism: 1
 
-minio:
+s3:
   host: ""
   port: 9000
   access_key: ""
   secret_key: ""
+
+redis:
+  host: ""
+  port: 6379
+  username: ""
+  password: ""
+
+resend:
+  api_key: ""

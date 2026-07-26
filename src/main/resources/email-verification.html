@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meadow 验证码邮件</title>
+    <style>
+        /* 通用重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #1a1a2e;
+            font-family: 'Courier New', 'Segoe UI', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* 主卡片 —— 仿 Minecraft 风格 */
+        .email-container {
+            max-width: 520px;
+            width: 100%;
+            background-color: #2d2d44;
+            border: 4px solid #4a4a6a;
+            border-radius: 12px;
+            padding: 36px 32px 28px;
+            color: #e0e0e0;
+            transition: all 0.2s;
+        }
+
+        /* 顶部标题 */
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #3d3d5c;
+            padding-bottom: 16px;
+        }
+
+        .header .logo-icon {
+            font-size: 28px;
+            margin-right: 6px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #b8e6b8;
+            text-shadow: 0 0 12px rgba(80, 200, 120, 0.2), 0 2px 0 #1a3a1a;
+            display: inline-block;
+            font-family: 'Courier New', monospace;
+        }
+
+        .header .sub {
+            display: block;
+            font-size: 13px;
+            color: #6a8a7a;
+            letter-spacing: 3px;
+            margin-top: 4px;
+            font-weight: 300;
+        }
+
+        .header .sub .highlight {
+            color: #8aaa8a;
+        }
+
+        /* 装饰分隔线 */
+        .divider {
+            text-align: center;
+            font-size: 14px;
+            letter-spacing: 6px;
+            color: #4d6b4d;
+            margin: 4px 0 18px 0;
+            user-select: none;
+        }
+
+        /* 验证码盒子 */
+        .code-box {
+            background-color: #1e1e32;
+            border: 3px solid #3d5c3d;
+            border-radius: 10px;
+            padding: 18px 12px;
+            margin: 20px 0 18px 0;
+            text-align: center;
+            box-shadow: inset 0 0 20px rgba(0, 20, 0, 0.4), 0 4px 0 #0f1f0f;
+            cursor: default;
+        }
+
+        .code-box .label {
+            font-size: 13px;
+            color: #a0c0a0;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 300;
+        }
+
+        /* 验证码数字 — 使用 letter-spacing 实现视觉间距，复制时不带空格 */
+        .code-box .code {
+            font-size: 52px;
+            font-weight: 700;
+            letter-spacing: 14px;
+            color: #8fdf8f;
+            text-shadow: 0 0 24px rgba(80, 220, 120, 0.15), 0 3px 0 #1a3a1a;
+            font-family: 'Courier New', monospace;
+            margin: 6px 0 2px 0;
+            user-select: all;
+            cursor: pointer;
+            display: inline-block;
+            padding: 0 8px;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+
+        .code-box .code:hover {
+            background: rgba(80, 220, 120, 0.06);
+        }
+
+        .code-box .code:active {
+            background: rgba(80, 220, 120, 0.12);
+        }
+
+        .code-box .hint {
+            font-size: 12px;
+            color: #6a7a6a;
+            margin-top: 6px;
+        }
+
+        .code-box .hint strong {
+            color: #8aaa8a;
+        }
+
+        /* 正文 */
+        .message {
+            font-size: 15px;
+            line-height: 1.7;
+            color: #c8c8e0;
+            text-align: center;
+            padding: 6px 0 4px 0;
+        }
+
+        .message .highlight {
+            color: #b8e6b8;
+            font-weight: 600;
+        }
+
+        /* 安全提示 */
+        .security-note {
+            background-color: #1a1a2e;
+            border-left: 4px solid #4a6a4a;
+            border-radius: 6px;
+            padding: 14px 16px;
+            margin: 18px 0 12px 0;
+            font-size: 13px;
+            color: #8a9a8a;
+            line-height: 1.6;
+        }
+
+        .security-note .shield {
+            font-size: 16px;
+            margin-right: 6px;
+        }
+
+        /* 底部 */
+        .footer {
+            border-top: 2px solid #3d3d5c;
+            padding-top: 18px;
+            margin-top: 12px;
+            text-align: center;
+            font-size: 13px;
+            color: #6a7a7a;
+            letter-spacing: 1px;
+            line-height: 1.7;
+        }
+
+        .footer .slogan {
+            color: #8aaa8a;
+            font-weight: 400;
+            letter-spacing: 2px;
+        }
+
+        .footer .meta {
+            display: block;
+            font-size: 11px;
+            color: #4a4a6a;
+            margin-top: 2px;
+            letter-spacing: 0.5px;
+        }
+
+        /* 响应式 */
+        @media (max-width: 460px) {
+            .email-container {
+                padding: 24px 16px 20px;
+            }
+
+            .header h1 {
+                font-size: 26px;
+            }
+
+            .code-box .code {
+                font-size: 38px;
+                letter-spacing: 10px;
+            }
+
+            .code-box {
+                padding: 14px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="email-container">
+
+    <!-- ======== 头部 ======== -->
+    <div class="header">
+        <span class="logo-icon">🌾</span>
+        <h1>Meadow</h1>
+        <span class="sub">◈ 草甸如茵 · 繁茂如林 ◈</span>
+    </div>
+
+    <div class="divider">✦ ✦ ✦ ✦ ✦</div>
+
+    <!-- ======== 正文 ======== -->
+    <div class="message">
+        你正在 <span class="highlight">Meadow</span> 进行身份验证，
+        <br>请输入以下验证码以继续：
+    </div>
+
+    <!-- ======== 验证码 ======== -->
+    <div class="code-box">
+        <div class="label">◈ 验 证 码 ◈</div>
+        <!-- letter-spacing 控制视觉间距，实际文本无空格，复制即为纯数字 -->
+        <span class="code" id="verificationCode">{{code}}</span>
+        <div class="hint">⏳ 有效期 <strong>5 分钟</strong> · 点击验证码可全选复制</div>
+    </div>
+
+    <!-- ======== 安全提示 ======== -->
+    <div class="security-note">
+        <span class="shield">🛡️</span> 如果你没有发起此请求，请忽略这封邮件。
+        <br>你的账号很安全，无需任何操作。
+    </div>
+
+    <!-- ======== 底部 ======== -->
+    <div class="footer">
+        <span class="slogan">✦ 草甸如茵，繁茂如林 ✦</span>
+        <span class="meta">© 2026 Meadow · 系统自动发送，请勿直接回复</span>
+    </div>
+
+</div>
+
+<!-- 点击验证码自动全选，方便复制 -->
+<script>
+    document.getElementById('verificationCode').addEventListener('click', function () {
+        const range = document.createRange();
+        range.selectNodeContents(this);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+    });
+</script>
+
+</body>
+</html>

@@ -1,15 +1,27 @@
 package moe.tabidachi.meadow.model
 
 import kotlinx.serialization.Serializable
+import moe.tabidachi.meadow.database.model.SystemRole
 import kotlin.time.Instant
 
 @Serializable
 data class UserInfo(
     val uid: Long,
     val username: String,
-    val email: String? = null,
-    val phone: String? = null,
-    val avatar: String? = null,
-    val createTime: Instant? = null,
-    val updateTime: Instant? = null,
-)
+    val email: String?,
+    val phone: String?,
+    val avatarUrl: String?,
+    val gameId: String,
+    val role: SystemRole,
+    val isActive: Boolean,
+    val lastLogin: Instant?,
+    val createdAt: Instant?,
+    val updatedAt: Instant?,
+) {
+    fun desensitize(): UserInfo = copy(
+        email = null,
+        phone = null,
+        createdAt = null,
+        updatedAt = null,
+    )
+}

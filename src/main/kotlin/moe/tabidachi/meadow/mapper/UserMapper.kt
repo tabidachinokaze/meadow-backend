@@ -12,9 +12,13 @@ object UserMapper {
             password = entity.password,
             email = entity.email,
             phone = entity.phone,
-            avatar = entity.avatar,
-            createTime = entity.createTime,
-            updateTime = entity.updateTime
+            avatarUrl = entity.avatarUrl,
+            gameId = entity.gameId,
+            role = entity.role,
+            isActive = entity.isActive,
+            lastLogin = entity.lastLogin,
+            createdAt = entity.createdAt,
+            updatedAt = entity.updatedAt,
         )
     }
 
@@ -24,9 +28,13 @@ object UserMapper {
             username = entity.username,
             email = entity.email,
             phone = entity.phone,
-            avatar = entity.avatar,
-            createTime = entity.createTime,
-            updateTime = entity.updateTime
+            avatarUrl = entity.avatarUrl,
+            gameId = entity.gameId,
+            role = entity.role,
+            isActive = entity.isActive,
+            lastLogin = entity.lastLogin,
+            createdAt = entity.createdAt,
+            updatedAt = entity.updatedAt
         )
     }
 }

@@ -8,21 +8,18 @@ import io.ktor.server.sse.*
 import moe.tabidachi.meadow.model.config.JwtConfig
 import moe.tabidachi.meadow.routing.authenticate
 import moe.tabidachi.meadow.routing.contact
+import moe.tabidachi.meadow.routing.swagger
 import moe.tabidachi.meadow.routing.user
 
 fun Application.configureRouting() {
     install(SSE)
-    routing {
-        sse("/sse") {
-
-        }
-    }
     val jwtConfig = property<JwtConfig>("jwt")
     routing {
         authenticate()
+        swagger()
         authenticate(jwtConfig.name) {
             user()
-            contact()
+            //contact()
         }
     }
 }
