@@ -19,4 +19,7 @@ class UserEntity(uid: EntityID<Long>) : LongEntity(uid) {
     var lastLogin by UserTable.lastLogin
     var createdAt by UserTable.createdAt
     var updatedAt by UserTable.updatedAt
+    var bio by UserTable.bio
+    var website by UserTable.website
+    var location by UserTable.location
 }

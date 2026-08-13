@@ -19,6 +19,9 @@ object UserMapper {
             lastLogin = entity.lastLogin,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt,
+            bio = entity.bio,
+            website = entity.website,
+            location = entity.location
         )
     }
 
@@ -34,7 +37,10 @@ object UserMapper {
             isActive = entity.isActive,
             lastLogin = entity.lastLogin,
             createdAt = entity.createdAt,
-            updatedAt = entity.updatedAt
+            updatedAt = entity.updatedAt,
+            bio = entity.bio,
+            website = entity.website,
+            location = entity.location
         )
     }
 }

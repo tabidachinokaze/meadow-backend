@@ -29,7 +29,6 @@ class AuthServiceImpl(
             request.username.length !in 2..32 || !RegexUsernameStrict.matches(request.username) -> ValidStatusCode.INVALID_USERNAME.emptyData()
             userRepository.getByEmail(request.email) != null -> UserStatusCode.EMAIL_ALREADY_EXISTS.emptyData()
             userRepository.getByUsername(request.username) != null -> UserStatusCode.USERNAME_ALREADY_EXISTS.emptyData()
-            userRepository.getByGameId(request.gameId) != null -> UserStatusCode.GAME_ID_EXISTS.emptyData()
             else -> when (captchaValidator.validate("email:code:${request.email}", request.verificationCode)) {
                 CaptchaValidator.ValidationResult.ERROR -> UserStatusCode.VERIFICATION_CODE_ERROR.emptyData()
                 CaptchaValidator.ValidationResult.EXPIRED -> UserStatusCode.VERIFICATION_CODE_EXPIRED.emptyData()
@@ -38,7 +37,7 @@ class AuthServiceImpl(
                         username = request.username,
                         email = request.email,
                         password = request.password,
-                        gameId = request.gameId
+                        //gameId = request.gameId
                     )
                     val token = jwt.sign(uid) {
                         withExpiresAt(Clock.System.now().plus(7.days).toJavaInstant())
@@ -63,7 +62,7 @@ class AuthServiceImpl(
                 request.password.length < 8 -> UserStatusCode.PASSWORD_TOO_WEAK.emptyData()
                 !encryptor.verify(
                     user.password,
-                    request.password.toCharArray()
+                    request.password
                 ) -> UserStatusCode.PASSWORD_INCORRECT.emptyData()
 
                 else -> {

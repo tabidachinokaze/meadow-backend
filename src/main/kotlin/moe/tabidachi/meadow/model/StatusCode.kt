@@ -10,6 +10,7 @@ enum class CommonStatusCode(
     override val message: String
 ) : StatusCode {
     SUCCESS(20000, "操作成功"),
+    FAILURE(30000, "操作失败"),
     PARAM_ERROR(40000, "请求参数校验失败"),
     UNAUTHORIZED(40101, "请先登录或 Token 已失效"),
     FORBIDDEN(40102, "没有权限访问该资源"),
@@ -39,6 +40,18 @@ enum class UserStatusCode(
     VERIFICATION_CODE_EXPIRED(40215, "验证码已过期"),
 }
 
+enum class ServerStatusCode(
+    override val code: Int,
+    override val message: String
+) : StatusCode {
+    SERVER_ALREADY_EXISTS(40301, "服务器已存在"),
+    SERVER_NOT_EXISTS(40302, "服务器不存在"),
+    WITHOUT_ANY_FIELDS(40303, "没有要更新的字段"),
+    SERVER_KEY_ERROR(40304, "服务器密钥错误"),
+    ENVIRONMENT_CHANGED(40305, "服务器环境变更，请重新初始化"),
+    BIND_FAILURE(40306, "绑定失败，请使用本人账号绑定"),
+}
+
 // 验证错误状态码 (03)
 enum class ValidStatusCode(
     override val code: Int,
@@ -52,7 +65,7 @@ enum class ValidStatusCode(
 inline fun <reified T> StatusCode.withData(data: T): Response<T> =
     Response(code = code, message = message, data = data)
 
-fun StatusCode.emptyData(code: Int = this.code, message: String? = this.message): Response<String?> =
+inline fun <reified T> StatusCode.emptyData(code: Int = this.code, message: String? = this.message): Response<T?> =
     Response(code = code, message = message ?: this.message, data = null)
 
 val Response<*>.statusCode: StatusCode? get() = (CommonStatusCode.entries + UserStatusCode.entries + ValidStatusCode.entries).find { it.code == code }

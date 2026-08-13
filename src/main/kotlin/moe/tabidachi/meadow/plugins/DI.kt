@@ -1,30 +1,21 @@
 package moe.tabidachi.meadow.plugins
 
 import aws.sdk.kotlin.services.s3.S3Client
-import aws.smithy.kotlin.runtime.auth.awscredentials.Credentials
-import aws.smithy.kotlin.runtime.auth.awscredentials.CredentialsProvider
-import aws.smithy.kotlin.runtime.collections.Attributes
-import aws.smithy.kotlin.runtime.net.Host
-import aws.smithy.kotlin.runtime.net.Scheme
-import aws.smithy.kotlin.runtime.net.url.Url
 import com.resend.Resend
 import io.github.domgew.kedis.KedisClient
 import io.github.domgew.kedis.KedisConfiguration
 import io.ktor.server.application.*
 import io.ktor.server.config.*
 import io.ktor.server.plugins.di.*
+import moe.tabidachi.meadow.contract.Qualifier
+import moe.tabidachi.meadow.database.table.ServerTable
 import moe.tabidachi.meadow.database.table.UserRelationTable
 import moe.tabidachi.meadow.database.table.UserTable
 import moe.tabidachi.meadow.model.config.*
-import moe.tabidachi.meadow.repository.UserRelationRepository
-import moe.tabidachi.meadow.repository.UserRelationRepositoryImpl
-import moe.tabidachi.meadow.repository.UserRepository
-import moe.tabidachi.meadow.repository.UserRepositoryImpl
+import moe.tabidachi.meadow.repository.*
 import moe.tabidachi.meadow.security.*
-import moe.tabidachi.meadow.service.AuthService
-import moe.tabidachi.meadow.service.AuthServiceImpl
-import moe.tabidachi.meadow.service.UserService
-import moe.tabidachi.meadow.service.UserServiceImpl
+import moe.tabidachi.meadow.service.*
+import moe.tabidachi.meadow.shared.SharedS3Client
 import moe.tabidachi.meadow.system.Postman
 import moe.tabidachi.meadow.system.PostmanResendImpl
 import moe.tabidachi.meadow.system.PostmanTestImpl
@@ -41,13 +32,22 @@ fun Application.configureDI() {
     val s3Config = property<S3Config>("s3")
     val redisConfig = property<RedisConfig>("redis")
     val resendApiKey = property<String>("resend.api_key")
+    val secretKey = property<String>("encryption.secret_key")
     dependencies {
-        provide<Encryptor> {
+        provide<Encryptor>(Qualifier.ARGON2_ENCRYPTOR) {
             Argon2Encryptor(
                 iterations = argon2Config.iterations,
                 memory = argon2Config.memory,
                 parallelism = argon2Config.parallelism
             )
+        }
+        provide<Encryptor>(Qualifier.AES_ENCRYPTOR) {
+            AesEncryptor(
+                secretKey = secretKey
+            )
+        }
+        provide<Encryptor>(Qualifier.RSA_ENCRYPTOR) {
+            RsaEncryptor()
         }
         provide<Jwt> {
             JwtImpl(
@@ -57,22 +57,13 @@ fun Application.configureDI() {
             )
         }
         provide<S3Client> {
-            S3Client {
-                this.region = "us-east-1"
-                this.endpointUrl = Url {
-                    this.scheme = Scheme.HTTP
-                    this.host = Host.Domain(s3Config.host)
-                    this.port = s3Config.port
-                }
-                this.credentialsProvider = object : CredentialsProvider {
-                    override suspend fun resolve(attributes: Attributes): Credentials {
-                        return Credentials(
-                            accessKeyId = s3Config.accessKey,
-                            secretAccessKey = s3Config.secretKey
-                        )
-                    }
-                }
-            }
+            SharedS3Client(s3Config)
+        }
+        provide<StorageService> {
+            S3Service(
+                s3Config = s3Config,
+                s3Client = resolve()
+            )
         }
         provide<KedisClient> {
             KedisClient(
@@ -116,7 +107,7 @@ fun Application.configureDI() {
         provide<Database> {
             Database.connect(url, driver, user, password).also { db ->
                 transaction(db) {
-                    SchemaUtils.create(UserTable, UserRelationTable)
+                    SchemaUtils.create(UserTable, UserRelationTable, ServerTable)
                 }
             }
         }
@@ -125,7 +116,7 @@ fun Application.configureDI() {
         provide<UserRepository> {
             UserRepositoryImpl(
                 database = resolve(),
-                encryptor = resolve()
+                encryptor = resolve(Qualifier.ARGON2_ENCRYPTOR)
             )
         }
         provide<UserRelationRepository> {
@@ -133,12 +124,18 @@ fun Application.configureDI() {
                 database = resolve()
             )
         }
+        provide<ServerRepository> {
+            ServerRepositoryImpl(
+                database = resolve(),
+                encryptor = resolve(Qualifier.AES_ENCRYPTOR)
+            )
+        }
     }
     dependencies {
         provide<AuthService> {
             AuthServiceImpl(
                 jwt = resolve(),
-                encryptor = resolve(),
+                encryptor = resolve(Qualifier.ARGON2_ENCRYPTOR),
                 userRepository = resolve(),
                 postman = resolve(),
                 captchaValidator = resolve()
@@ -148,6 +145,14 @@ fun Application.configureDI() {
             UserServiceImpl(
                 userRepository = resolve(),
                 userRelationRepository = resolve(),
+                encryptor = resolve(Qualifier.ARGON2_ENCRYPTOR),
+            )
+        }
+        provide<ServerService> {
+            ServerServiceImpl(
+                serverRepository = resolve(),
+                userRepository = resolve(),
+                captchaValidator = resolve()
             )
         }
     }

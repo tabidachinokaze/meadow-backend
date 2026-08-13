@@ -2,13 +2,13 @@ package moe.tabidachi.meadow.routing
 
 import io.ktor.http.*
 import io.ktor.openapi.*
+import io.ktor.server.plugins.*
 import io.ktor.server.plugins.di.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.routing.openapi.*
 import moe.tabidachi.meadow.contract.RateLimitNames
-import moe.tabidachi.meadow.exception.MissingParameterException
 import moe.tabidachi.meadow.model.CommonStatusCode
 import moe.tabidachi.meadow.model.Response
 import moe.tabidachi.meadow.model.UserStatusCode
@@ -19,7 +19,7 @@ import moe.tabidachi.meadow.model.request.RegisterRequest
 import moe.tabidachi.meadow.model.request.SendCodeType
 import moe.tabidachi.meadow.service.AuthService
 
-fun Route.authenticate() {
+fun Route.auth() {
     val authService: AuthService by application.dependencies
     route("/auth") {
         post<RegisterRequest>("/register") { request ->
@@ -110,8 +110,9 @@ fun Route.authenticate() {
 
     rateLimit(RateLimitNames.email) {
         post("/send-code") {
-            val email = call.request.queryParameters["email"] ?: throw MissingParameterException("email")
-            val type = call.request.queryParameters["type"] ?: throw MissingParameterException("type")
+            val email =
+                call.request.queryParameters["email"] ?: throw MissingRequestParameterException("email", "query")
+            val type = call.request.queryParameters["type"] ?: throw MissingRequestParameterException("type", "query")
             val response = when (SendCodeType.valueOf(type)) {
                 SendCodeType.REGISTER -> authService.sendRegisterCode(email)
                 SendCodeType.LOGIN -> authService.sendLoginCode(email)

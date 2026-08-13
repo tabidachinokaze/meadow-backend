@@ -12,13 +12,16 @@ fun Application.configureStatusPages() {
         exception<Throwable> { call, cause ->
             cause.printStackTrace()
             call.respond(
-                CommonStatusCode.INTERNAL_SERVER_ERROR.emptyData(
+                CommonStatusCode.INTERNAL_SERVER_ERROR.emptyData<String>(
                     message = cause.cause?.message ?: cause.message
                 )
             )
         }
         status(HttpStatusCode.NotFound) {
-            call.respond(CommonStatusCode.NOT_FOUND.emptyData())
+            call.respond(CommonStatusCode.NOT_FOUND.emptyData<String>())
+        }
+        status(HttpStatusCode.Unauthorized) {
+            call.respond(CommonStatusCode.UNAUTHORIZED.emptyData<String>())
         }
     }
 }

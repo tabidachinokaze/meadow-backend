@@ -1,19 +1,23 @@
 package moe.tabidachi.meadow.service
 
 import moe.tabidachi.meadow.model.*
+import moe.tabidachi.meadow.model.request.UpdatePasswordRequest
+import moe.tabidachi.meadow.model.request.UpdateUserInfoRequest
 import moe.tabidachi.meadow.repository.UserRelationRepository
 import moe.tabidachi.meadow.repository.UserRepository
+import moe.tabidachi.meadow.security.Encryptor
 
 class UserServiceImpl(
     private val userRepository: UserRepository,
-    private val userRelationRepository: UserRelationRepository
+    private val userRelationRepository: UserRelationRepository,
+    private val encryptor: Encryptor
 ) : UserService {
-    override suspend fun getUserInfo(uid: Long, self: Boolean): Response<UserInfo?> {
-        val userInfo = userRepository.getUserInfo(uid)
+    override suspend fun getUserInfo(callingUserId: Long?, targetUserId: Long): Response<UserInfo?> {
+        val userInfo = userRepository.getUserInfo(targetUserId)
         return if (userInfo == null) {
             UserStatusCode.USER_NOT_FOUND.withData(userInfo)
         } else {
-            val sensitiveUserInfo = if (self) {
+            val sensitiveUserInfo = if (callingUserId == targetUserId) {
                 userInfo
             } else {
                 userInfo.desensitize()
@@ -22,12 +26,84 @@ class UserServiceImpl(
         }
     }
 
-    override suspend fun getContracts(uid: Long): Response<List<UserInfo>> {
-        val userInfos = userRelationRepository.getByUserId(uid).filter {
+    override suspend fun getContracts(callingUserId: Long): Response<List<UserInfo>> {
+        val userInfos = userRelationRepository.getByUserId(callingUserId).filter {
             it.status == RelationStatus.ACTIVE
         }.mapNotNull {
             userRepository.getUserInfo(it.targetUserId)
         }
         return CommonStatusCode.SUCCESS.withData(userInfos)
+    }
+
+    override suspend fun updateUserInfo(
+        callingUserId: Long,
+        targetUserId: Long,
+        request: UpdateUserInfoRequest
+    ): Response<UserInfo?> {
+        return if (callingUserId == targetUserId) {
+            if (request.isEmpty()) {
+                return CommonStatusCode.FAILURE.emptyData()
+            }
+            val user = userRepository.getByUid(targetUserId) ?: return UserStatusCode.USER_NOT_FOUND.emptyData()
+            val userByUsername = request.username?.let { userRepository.getByUsername(it) }
+            if (userByUsername != null && user.uid != userByUsername.uid && user.username == userByUsername.username) {
+                return UserStatusCode.USERNAME_ALREADY_EXISTS.emptyData()
+            }
+            val userByEmail = request.email?.let { userRepository.getByEmail(it) }
+            if (userByEmail != null && user.uid != userByEmail.uid && user.email == userByEmail.email) {
+                return UserStatusCode.EMAIL_ALREADY_EXISTS.emptyData()
+            }
+            val userByPhone = request.phone?.let { userRepository.getByPhone(it) }
+            if (userByPhone != null && user.uid != userByPhone.uid && user.phone == userByPhone.phone) {
+                return UserStatusCode.PHONE_ALREADY_REGISTERED.emptyData()
+            }
+            val result = userRepository.updateUserInfo(
+                callingUserId = callingUserId,
+                username = request.username,
+                email = request.email,
+                phone = request.phone,
+                avatarUrl = request.avatarUrl,
+                bio = request.bio,
+                website = request.website,
+                location = request.location
+            )
+            if (result) {
+                getUserInfo(callingUserId, targetUserId)
+            } else {
+                CommonStatusCode.FAILURE.emptyData()
+            }
+        } else {
+            CommonStatusCode.FORBIDDEN.emptyData()
+        }
+    }
+
+    override suspend fun updatePassword(
+        callingUserId: Long,
+        targetUserId: Long,
+        request: UpdatePasswordRequest
+    ): Response<String?> {
+        return when {
+            callingUserId != targetUserId -> CommonStatusCode.FORBIDDEN.emptyData()
+            else -> {
+                val user = userRepository.getByUid(targetUserId)
+                when {
+                    user == null -> UserStatusCode.USER_NOT_FOUND.emptyData()
+                    encryptor.verify(user.password, request.oldPassword) -> {
+                        userRepository.updatePassword(targetUserId, request.newPassword)
+                        CommonStatusCode.SUCCESS.emptyData()
+                    }
+
+                    else -> UserStatusCode.PASSWORD_INCORRECT.emptyData()
+                }
+            }
+        }
+    }
+
+    override suspend fun updateEmail(
+        callingUserId: Long,
+        targetUserId: Long,
+        request: UpdatePasswordRequest
+    ): Response<UserInfo?> {
+        TODO("Not yet implemented")
     }
 }

@@ -11,12 +11,15 @@ data class UserInfo(
     val email: String?,
     val phone: String?,
     val avatarUrl: String?,
-    val gameId: String,
+    val gameId: String?,
     val role: SystemRole,
     val isActive: Boolean,
     val lastLogin: Instant?,
     val createdAt: Instant?,
     val updatedAt: Instant?,
+    val bio: String?,
+    val website: String?,
+    val location: String?,
 ) {
     fun desensitize(): UserInfo = copy(
         email = null,
