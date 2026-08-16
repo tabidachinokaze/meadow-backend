@@ -13,4 +13,15 @@ interface ChatService {
 
     /** 撤回消息（owner / admin） */
     suspend fun recallMessage(callerId: Long, serverId: Long, messageId: Long): Response<Long?>
+
+    /** Agent 上报聊天消息（server_key + machine_id 认证，规划 §9.12 实时事件） */
+    suspend fun reportAgentMessage(
+        serverId: Long,
+        serverKey: String,
+        machineId: String,
+        senderUuid: String?,
+        senderName: String,
+        content: String,
+        type: String,
+    ): Response<ChatMessageInfo?>
 }

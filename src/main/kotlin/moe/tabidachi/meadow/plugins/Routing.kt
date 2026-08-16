@@ -33,12 +33,13 @@ fun Application.configureRouting() {
         chatSocket()
         // 服务器列表/详情为公开接口（内部对写操作单独要求 JWT，见 routing/Servers.kt）
         servers()
+        // Agent 状态上报免认证（server_key + machine_id 认证，见 routing/ServerStatus.kt）
+        serverStatus()
         authenticate(jwtConfig.name) {
             user()
             serverMembers()
             favorites()
             screenshots()
-            serverStatus()
             players()
             mods()
             chat()

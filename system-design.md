@@ -956,20 +956,21 @@ sequenceDiagram
 | 服务端→客户端 | `player_update` | 在线玩家列表/人数变化：`{ online_count, players[] }`                                 |
 | 服务端→客户端 | `pong`          | 心跳响应                                                                             |
 
-### 9.12 游戏服数据同步（Agent ↔ 后端内部接口）[已实现]（后端侧；Mod 端上报待 meadow-mod 扩展）
+### 9.12 游戏服数据同步（Agent ↔ 后端内部接口）[已实现]
 
 > 原设计：每个游戏服运行 Mod/Agent，通过 `server_key` 认证通信。模组 `meadow-mod` 已实现服务器注册（`POST /servers`）、初始化（
-> `POST /servers/{id}/init`）、绑定（`POST /servers/{id}/bind`），以下为数据同步扩展。
+> `POST /servers/{id}/init`）、绑定（`POST /servers/{id}/bind`），以下为数据同步扩展（后端 + Mod 均已实现）。
 
 | 接口                       | 方法 | 方向         | 说明                                                                                |
 |:---------------------------|:-----|:-------------|:------------------------------------------------------------------------------------|
-| `/internal/sync/status`    | POST | Agent → 后端 | 每 10s 推送：`{ online_players, max_players, uptime_seconds, tps, memory_used_mb }` |
-| WebSocket 长连接           | -    | Agent → 后端 | 实时聊天/玩家进出/成就事件                                                          |
-| `/internal/players`        | GET  | 后端 → Agent | 获取在线玩家列表                                                                    |
-| `/internal/mods`           | GET  | 后端 → Agent | 获取 Mod 列表                                                                       |
-| `/internal/worlds`         | GET  | 后端 → Agent | 获取存档列表                                                                        |
-| `/internal/chat/send`      | POST | 后端 → Agent | 下发消息：`{ message, sender }`                                                     |
-| `/internal/chat/broadcast` | POST | 后端 → Agent | 下发系统公告：`{ message }`                                                         |
+| `/servers/{id}/sync/status`| POST | Agent → 后端 | **已实现**：每 10s 推送在线玩家（含坐标/世界）、Mod 列表、TPS、运行时长（`meadow-mod` AgentReporter） |
+| `/servers/{id}/sync/chat`  | POST | Agent → 后端 | **已实现**：Agent 上报聊天消息（`meadow-mod` ChatReporter，监听 `ServerMessageEvents.CHAT_MESSAGE`） |
+| WebSocket 长连接           | -    | Agent → 后端 | 实时聊天/玩家进出/成就事件（规划，可基于 `/ws/chat` 或 Agent 专用 WS 扩展）          |
+| `/internal/players`        | GET  | 后端 → Agent | 获取在线玩家列表（规划，后端已有 `/servers/{id}/players`）                           |
+| `/internal/mods`           | GET  | 后端 → Agent | 获取 Mod 列表（规划，后端已有 `/servers/{id}/mods`）                                 |
+| `/internal/worlds`         | GET  | 后端 → Agent | 获取存档列表（规划，后端已有 `/servers/{id}/worlds`）                               |
+| `/internal/chat/send`      | POST | 后端 → Agent | 下发消息：`{ message, sender }`（规划）                                             |
+| `/internal/chat/broadcast` | POST | 后端 → Agent | 下发系统公告：`{ message }`（规划）                                                 |
 
 > NAT 内网场景：若游戏服无法被入站访问，将"按需拉取/指令下发"改为复用 Agent 的出站 WebSocket 长连接（请求-响应模式）。状态统一由
 > Agent 定时推送，后端不主动拉取。
@@ -1074,6 +1075,7 @@ sequenceDiagram
 | 截图    | POST               | `/servers/{id}/screenshots/{sid}/report` | JWT | ✅（§9.6）            |
 | 截图    | DELETE             | `/servers/{id}/screenshots/{sid}` | JWT(admin) | ✅（§9.6）          |
 | 状态    | POST               | `/servers/{id}/sync/status` | 无(server_key) | ✅（§9.12）          |
+| 状态    | POST               | `/servers/{id}/sync/chat` | 无(server_key) | ✅（§9.12 Agent 聊天上报） |
 | 玩家    | GET                | `/servers/{id}/players`   | JWT        | ✅（§9.2）                     |
 | Mod     | GET                | `/servers/{id}/mods`      | JWT        | ✅（§9.3）                     |
 | 聊天    | GET                | `/servers/{id}/chat/history` | JWT     | ✅（§9.5）                    |

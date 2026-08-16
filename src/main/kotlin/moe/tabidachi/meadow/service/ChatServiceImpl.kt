@@ -70,6 +70,35 @@ class ChatServiceImpl(
         return CommonStatusCode.SUCCESS.withData(messageId)
     }
 
+    override suspend fun reportAgentMessage(
+        serverId: Long,
+        serverKey: String,
+        machineId: String,
+        senderUuid: String?,
+        senderName: String,
+        content: String,
+        type: String,
+    ): Response<ChatMessageInfo?> {
+        val server = serverRepository.getById(serverId)
+            ?: return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
+        if (server.serverKey != serverKey) {
+            return ServerStatusCode.SERVER_KEY_ERROR.emptyData()
+        }
+        if (server.machineId != machineId) {
+            return ServerStatusCode.ENVIRONMENT_CHANGED.emptyData()
+        }
+        val message = chatMessageRepository.add(
+            serverId = serverId,
+            senderName = senderName,
+            senderUuid = senderUuid,
+            content = content,
+            type = type,
+        )
+        val info = message.toInfo(null)
+        chatHub.broadcast(serverId, info)
+        return CommonStatusCode.SUCCESS.withData(info)
+    }
+
     private suspend fun isSystemAdmin(userId: Long): Boolean =
         userRepository.getByUid(userId)?.role == moe.tabidachi.meadow.database.model.SystemRole.ADMIN
 
