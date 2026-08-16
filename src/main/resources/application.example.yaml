@@ -66,5 +66,5 @@ resend:
   api_key: "${MEADOW_RESEND_API_KEY:CHANGE_ME}"
 
 encryption:
-  # AES-128 密钥：必须为 32 位十六进制（16 字节）；生产用环境变量覆盖
-  secret_key: "${MEADOW_ENCRYPTION_SECRET:CHANGE_ME}"
+  # AES-128 密钥：必须为 32 位十六进制（16 字节）；生产必须用环境变量覆盖
+  secret_key: "${MEADOW_ENCRYPTION_SECRET:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}"
