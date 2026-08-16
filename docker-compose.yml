@@ -1,76 +1,28 @@
-# meadow 全栈本地/生产编排
+# meadow 后端部署（cachyos.lan 版）
+# 前置：cachyos.lan 上已运行 postgres / redis / rustfs(S3) 服务，本编排只部署 backend。
 # 用法：docker compose up -d
-# 环境变量需在 .env 中提供（见 application.example.yaml 说明）
+# 在 .env 中提供：MEADOW_DB_URL / MEADOW_DB_USER / MEADOW_DB_PASSWORD /
+#   MEADOW_REDIS_HOST / MEADOW_REDIS_PASSWORD / MEADOW_S3_HOST / MEADOW_S3_ACCESS_KEY / MEADOW_S3_SECRET_KEY /
+#   MEADOW_JWT_SECRET / MEADOW_ENCRYPTION_SECRET / MEADOW_RESEND_API_KEY
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: meadow
-      POSTGRES_USER: ${MEADOW_DB_USER:-username}
-      POSTGRES_PASSWORD: ${MEADOW_DB_PASSWORD:-password}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${MEADOW_DB_USER:-username}"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--requirepass", "${MEADOW_REDIS_PASSWORD:-12345678}"]
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${MEADOW_REDIS_PASSWORD:-12345678}", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MEADOW_S3_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MEADOW_S3_SECRET_KEY:-minioadmin}
-    ports:
-      - "9000:9000"   # S3 API（前端 storage 域名反代到此处）
-      - "9001:9001"   # 控制台
-    volumes:
-      - miniodata:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
   backend:
     build: .
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+    container_name: meadow-backend
     environment:
       MEADOW_DEVELOPMENT: "false"
-      MEADOW_DB_URL: "jdbc:postgresql://postgres:5432/meadow"
-      MEADOW_DB_USER: ${MEADOW_DB_USER:-username}
-      MEADOW_DB_PASSWORD: ${MEADOW_DB_PASSWORD:-password}
+      MEADOW_DB_URL: ${MEADOW_DB_URL:?必须设置 MEADOW_DB_URL，如 jdbc:postgresql://postgres.cachyos.lan:5432/meadow}
+      MEADOW_DB_USER: ${MEADOW_DB_USER:?必须设置 MEADOW_DB_USER}
+      MEADOW_DB_PASSWORD: ${MEADOW_DB_PASSWORD:?必须设置 MEADOW_DB_PASSWORD}
       MEADOW_JWT_SECRET: ${MEADOW_JWT_SECRET:?必须设置 MEADOW_JWT_SECRET}
       MEADOW_ENCRYPTION_SECRET: ${MEADOW_ENCRYPTION_SECRET:?必须设置 MEADOW_ENCRYPTION_SECRET}
-      MEADOW_S3_HOST: "minio"
-      MEADOW_S3_ACCESS_KEY: ${MEADOW_S3_ACCESS_KEY:-minioadmin}
-      MEADOW_S3_SECRET_KEY: ${MEADOW_S3_SECRET_KEY:-minioadmin}
-      MEADOW_REDIS_HOST: "redis"
-      MEADOW_REDIS_PASSWORD: ${MEADOW_REDIS_PASSWORD:-12345678}
+      # Redis（cachyos.lan 已有）
+      MEADOW_REDIS_HOST: ${MEADOW_REDIS_HOST:-redis.cachyos.lan}
+      MEADOW_REDIS_PASSWORD: ${MEADOW_REDIS_PASSWORD:-}
+      # S3 / RustFS（cachyos.lan 已有，443 反代）
+      MEADOW_S3_HOST: ${MEADOW_S3_HOST:-storage.cachyos.lan}
+      MEADOW_S3_ACCESS_KEY: ${MEADOW_S3_ACCESS_KEY:?必须设置 MEADOW_S3_ACCESS_KEY}
+      MEADOW_S3_SECRET_KEY: ${MEADOW_S3_SECRET_KEY:?必须设置 MEADOW_S3_SECRET_KEY}
       MEADOW_RESEND_API_KEY: ${MEADOW_RESEND_API_KEY:-}
     ports:
       - "23333:23333"
     restart: unless-stopped
-
-volumes:
-  pgdata:
-  redisdata:
-  miniodata:
