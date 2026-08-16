@@ -23,6 +23,7 @@ data class MyRoleInfo(
     @Serializable
     data class Permissions(
         val canEditServer: Boolean = false,
+        val canManageRcon: Boolean = false,
         val canManageMembers: Boolean = false,
         val canManageScreenshots: Boolean = false,
         val canManageChat: Boolean = false,
@@ -38,6 +39,8 @@ data class MyRoleInfo(
                 role = role,
                 permissions = Permissions(
                     canEditServer = manage,
+                    // RCON 属敏感配置，仅 owner（或系统管理员）可修改
+                    canManageRcon = role == ServerRole.OWNER || isSystemAdmin,
                     canManageMembers = role == ServerRole.OWNER || isSystemAdmin,
                     canManageScreenshots = manage,
                     canManageChat = manage,

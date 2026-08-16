@@ -1,6 +1,7 @@
 package moe.tabidachi.meadow.service
 
 import moe.tabidachi.meadow.database.model.ServerRole
+import moe.tabidachi.meadow.database.model.SystemRole
 import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.model.request.GameIdBindRequest
 import moe.tabidachi.meadow.model.request.ServerInitializeRequest
@@ -82,9 +83,20 @@ class ServerServiceImpl(
         val server = serverRepository.getById(serverId)
         return when {
             server == null -> ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
-            server.ownerId != ownerId -> CommonStatusCode.FORBIDDEN.emptyData()
             request.isEmpty() -> ServerStatusCode.WITHOUT_ANY_FIELDS.emptyData()
             else -> {
+                // 权限：owner / 管理员（ADMIN）/ 系统管理员可编辑基本信息；RCON 字段仅 owner / 系统管理员可改
+                val memberRole = serverMemberRepository.getByServerAndUser(serverId, ownerId)?.role
+                val isSystemAdmin = userRepository.getByUid(ownerId)?.role == SystemRole.ADMIN
+                val isOwner = server.ownerId == ownerId
+                val canEdit = isOwner || memberRole == ServerRole.ADMIN || isSystemAdmin
+                if (!canEdit) return CommonStatusCode.FORBIDDEN.emptyData()
+
+                val canManageRcon = isOwner || isSystemAdmin
+                if (!canManageRcon && (request.rconHost != null || request.rconPort != null || request.rconPassword != null)) {
+                    return CommonStatusCode.FORBIDDEN.emptyData()
+                }
+
                 val updateResult = serverRepository.update(
                     serverId = serverId,
                     name = request.name,
@@ -95,12 +107,14 @@ class ServerServiceImpl(
                     version = request.version,
                     bannerUrl = request.bannerUrl,
                     tags = request.tags,
-                    rconHost = request.rconHost,
-                    rconPort = request.rconPort,
-                    rconPassword = request.rconPassword
+                    rconHost = if (canManageRcon) request.rconHost else null,
+                    rconPort = if (canManageRcon) request.rconPort else null,
+                    rconPassword = if (canManageRcon) request.rconPassword else null
                 )
                 if (updateResult) {
-                    CommonStatusCode.SUCCESS.withData(serverRepository.getServerInfo(serverId)!!)
+                    val updated = serverRepository.getServerInfo(serverId)!!
+                    // 管理员可编辑基本信息，但响应同样脱敏（仅 owner 可见完整字段）
+                    CommonStatusCode.SUCCESS.withData(if (isOwner) updated else updated.desensitize())
                 } else {
                     CommonStatusCode.FAILURE.emptyData()
                 }
