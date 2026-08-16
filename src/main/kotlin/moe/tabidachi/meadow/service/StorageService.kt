@@ -142,8 +142,8 @@ class S3Service(
             this.key = objectKey
         }
         val signed = s3Client.presignGetObject(request, expiresIn)
-        // 预签名 URL 直接可用（forcePathStyle 下已含 bucket 路径与签名参数）
-        return signed.url.toString()
+        // 预签名 URL 的 host 基于连接 endpoint（内网），替换为公开访问地址（浏览器可达）
+        return signed.url.toString().replaceEndpointHost(s3Config)
     }
 
     override suspend fun presignObjectUrl(objectUrl: String, expiresIn: Duration): String {
@@ -175,4 +175,14 @@ class S3Service(
         if (parts.size < 2) return null
         return parts[0] to parts.drop(1).joinToString("/")
     }
+}
+
+/**
+ * 将 S3 URL 的 `scheme://host:port` 前缀替换为公开访问地址（浏览器可达）。
+ * 用于预签名 URL——其 host 基于连接 endpoint（容器内网），需替换为 public_* 配置。
+ */
+private fun String.replaceEndpointHost(s3Config: S3Config): String {
+    val idx = indexOf("/", indexOf("://") + 3)
+    val path = if (idx >= 0) substring(idx) else ""
+    return s3Config.publicBase() + path
 }
