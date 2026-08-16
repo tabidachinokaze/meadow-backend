@@ -8,7 +8,7 @@ import moe.tabidachi.meadow.ktx.callingUserId
 import moe.tabidachi.meadow.ktx.getParameter
 import moe.tabidachi.meadow.model.request.AddMemberRequest
 import moe.tabidachi.meadow.model.request.TransferOwnershipRequest
-import moe.tabidachi.meadow.model.request.UpdateMemberRoleRequest
+import moe.tabidachi.meadow.model.request.UpdateMemberRequest
 import moe.tabidachi.meadow.service.ServerMemberService
 
 /**
@@ -28,10 +28,10 @@ fun Route.serverMembers() {
             call.respond(serverMemberService.addMember(callingUserId, serverId, request))
         }
 
-        patch<UpdateMemberRoleRequest>("/members/{userId}") { request ->
+        patch<UpdateMemberRequest>("/members/{userId}") { request ->
             val serverId = getParameter<Long>("id")
             val userId = getParameter<Long>("userId")
-            call.respond(serverMemberService.updateRole(callingUserId, serverId, userId, request))
+            call.respond(serverMemberService.updateMember(callingUserId, serverId, userId, request))
         }
 
         delete("/members/{userId}") {

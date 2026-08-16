@@ -9,6 +9,8 @@ data class ServerMember(
     val serverId: Long,
     val userId: Long,
     val role: ServerRole,
+    /** 细粒度权限位（OWNER 记录恒为全权限） */
+    val permissions: MemberPermissions,
     val joinedAt: Instant,
     val updatedAt: Instant,
 )

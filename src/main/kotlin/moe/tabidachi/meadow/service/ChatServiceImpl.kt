@@ -60,9 +60,10 @@ class ChatServiceImpl(
         if (chatMessageRepository.getById(serverId, messageId) == null) {
             return ChatStatusCode.MESSAGE_NOT_FOUND.emptyData()
         }
-        val isManager = serverMemberRepository.getByServerAndUser(serverId, callerId)?.role
-            ?.let { it == ServerRole.OWNER || it == ServerRole.ADMIN } ?: false
-        if (!isManager && !isSystemAdmin(callerId)) {
+        // 权限位驱动：owner（全权限）或具备 canManageChat 的成员可撤回
+        val member = serverMemberRepository.getByServerAndUser(serverId, callerId)
+        val canRecall = member?.role == ServerRole.OWNER || member?.permissions?.canManageChat == true
+        if (!canRecall) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (!chatMessageRepository.recall(serverId, messageId)) {
@@ -103,9 +104,6 @@ class ChatServiceImpl(
         chatHub.broadcast(serverId, info)
         return CommonStatusCode.SUCCESS.withData(info)
     }
-
-    private suspend fun isSystemAdmin(userId: Long): Boolean =
-        userRepository.getByUid(userId)?.role == moe.tabidachi.meadow.database.model.SystemRole.ADMIN
 
     private fun moe.tabidachi.meadow.database.model.ChatMessage.toInfo(senderRole: String?): ChatMessageInfo {
         return ChatMessageInfo(

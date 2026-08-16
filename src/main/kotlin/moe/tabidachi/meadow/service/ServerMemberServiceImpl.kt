@@ -1,11 +1,11 @@
 package moe.tabidachi.meadow.service
 
+import moe.tabidachi.meadow.database.model.MemberPermissions
 import moe.tabidachi.meadow.database.model.ServerRole
-import moe.tabidachi.meadow.database.model.SystemRole
 import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.model.request.AddMemberRequest
 import moe.tabidachi.meadow.model.request.TransferOwnershipRequest
-import moe.tabidachi.meadow.model.request.UpdateMemberRoleRequest
+import moe.tabidachi.meadow.model.request.UpdateMemberRequest
 import moe.tabidachi.meadow.repository.ServerMemberRepository
 import moe.tabidachi.meadow.repository.ServerRepository
 import moe.tabidachi.meadow.repository.UserRepository
@@ -30,6 +30,7 @@ class ServerMemberServiceImpl(
                     gameId = user.gameId,
                     avatarUrl = user.avatarUrl,
                     role = member.role,
+                    permissions = MyRoleInfo.fromPermissions(member.permissions),
                     joinedAt = member.joinedAt,
                 )
             }
@@ -45,7 +46,7 @@ class ServerMemberServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrSystemAdmin(callerId, serverId)) {
+        if (!canManageMembers(callerId, serverId)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (request.role == ServerRole.OWNER) {
@@ -57,7 +58,12 @@ class ServerMemberServiceImpl(
         if (serverMemberRepository.getByServerAndUser(serverId, request.userId) != null) {
             return ServerMemberStatusCode.MEMBER_ALREADY_EXISTS.emptyData()
         }
-        val member = serverMemberRepository.add(serverId, request.userId, request.role)
+        // 权限默认值：ADMIN=ADMIN_DEFAULT，MEMBER=MEMBER_DEFAULT；也可由 owner 显式指定
+        val permissions = request.permissions ?: when (request.role) {
+            ServerRole.ADMIN -> MemberPermissions.ADMIN_DEFAULT
+            else -> MemberPermissions.MEMBER_DEFAULT
+        }
+        val member = serverMemberRepository.add(serverId, request.userId, request.role, permissions)
         val user = userRepository.getUserInfo(member.userId) ?: return CommonStatusCode.FAILURE.emptyData()
         return CommonStatusCode.SUCCESS.withData(
             ServerMemberInfo(
@@ -66,24 +72,25 @@ class ServerMemberServiceImpl(
                 gameId = user.gameId,
                 avatarUrl = user.avatarUrl,
                 role = member.role,
+                permissions = MyRoleInfo.fromPermissions(member.permissions),
                 joinedAt = member.joinedAt,
             )
         )
     }
 
-    override suspend fun updateRole(
+    override suspend fun updateMember(
         callerId: Long,
         serverId: Long,
         userId: Long,
-        request: UpdateMemberRoleRequest,
+        request: UpdateMemberRequest,
     ): Response<ServerMemberInfo?> {
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrSystemAdmin(callerId, serverId)) {
+        if (!canManageMembers(callerId, serverId)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
-        if (request.role == ServerRole.OWNER) {
+        if (request.isEmpty()) {
             return ServerMemberStatusCode.INVALID_ROLE.emptyData()
         }
         if (callerId == userId) {
@@ -94,12 +101,24 @@ class ServerMemberServiceImpl(
         if (target.role == ServerRole.OWNER) {
             return ServerMemberStatusCode.CANNOT_MODIFY_OWNER.emptyData()
         }
-        if (isSystemAdmin(userId)) {
-            return ServerMemberStatusCode.CANNOT_MODIFY_SYSTEM_ADMIN.emptyData()
+
+        // 角色变更
+        if (request.role != null) {
+            if (request.role == ServerRole.OWNER) {
+                return ServerMemberStatusCode.INVALID_ROLE.emptyData()
+            }
+            if (!serverMemberRepository.updateRole(serverId, userId, request.role)) {
+                return CommonStatusCode.FAILURE.emptyData()
+            }
         }
-        if (!serverMemberRepository.updateRole(serverId, userId, request.role)) {
-            return CommonStatusCode.FAILURE.emptyData()
+        // 权限变更（role 改为 OWNER 时由 repository 强制全权限）
+        if (request.permissions != null && request.role != ServerRole.OWNER) {
+            if (!serverMemberRepository.updatePermissions(serverId, userId, request.permissions)) {
+                return CommonStatusCode.FAILURE.emptyData()
+            }
         }
+        val updated = serverMemberRepository.getByServerAndUser(serverId, userId)
+            ?: return CommonStatusCode.FAILURE.emptyData()
         val user = userRepository.getUserInfo(userId) ?: return CommonStatusCode.FAILURE.emptyData()
         return CommonStatusCode.SUCCESS.withData(
             ServerMemberInfo(
@@ -107,8 +126,9 @@ class ServerMemberServiceImpl(
                 username = user.username,
                 gameId = user.gameId,
                 avatarUrl = user.avatarUrl,
-                role = request.role,
-                joinedAt = target.joinedAt,
+                role = updated.role,
+                permissions = MyRoleInfo.fromPermissions(updated.permissions),
+                joinedAt = updated.joinedAt,
             )
         )
     }
@@ -117,7 +137,7 @@ class ServerMemberServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrSystemAdmin(callerId, serverId)) {
+        if (!canManageMembers(callerId, serverId)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (callerId == userId) {
@@ -127,9 +147,6 @@ class ServerMemberServiceImpl(
             ?: return ServerMemberStatusCode.MEMBER_NOT_FOUND.emptyData()
         if (target.role == ServerRole.OWNER) {
             return ServerMemberStatusCode.CANNOT_MODIFY_OWNER.emptyData()
-        }
-        if (isSystemAdmin(userId)) {
-            return ServerMemberStatusCode.CANNOT_MODIFY_SYSTEM_ADMIN.emptyData()
         }
         if (!serverMemberRepository.remove(serverId, userId)) {
             return CommonStatusCode.FAILURE.emptyData()
@@ -144,7 +161,7 @@ class ServerMemberServiceImpl(
     ): Response<TransferResult?> {
         val server = serverRepository.getById(serverId)
             ?: return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
-        if (!isOwnerOrSystemAdmin(callerId, serverId)) {
+        if (!canManageMembers(callerId, serverId)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (server.ownerId == request.newOwnerId) {
@@ -157,10 +174,17 @@ class ServerMemberServiceImpl(
             ?: ServerRole.OWNER
         // 新所有者若还不是成员则自动添加为 member，再升级为 owner
         if (serverMemberRepository.getByServerAndUser(serverId, request.newOwnerId) == null) {
-            serverMemberRepository.add(serverId, request.newOwnerId, ServerRole.MEMBER)
+            serverMemberRepository.add(serverId, request.newOwnerId, ServerRole.MEMBER, MemberPermissions.MEMBER_DEFAULT)
         }
-        if (!serverMemberRepository.updateRole(serverId, server.ownerId, if (request.keepAsAdmin) ServerRole.ADMIN else ServerRole.MEMBER)) {
+        // 旧 owner 降级：keep_as_admin 时给 ADMIN 默认权限
+        if (!serverMemberRepository.updateRole(
+                serverId, server.ownerId,
+                if (request.keepAsAdmin) ServerRole.ADMIN else ServerRole.MEMBER
+            )) {
             return CommonStatusCode.FAILURE.emptyData()
+        }
+        if (request.keepAsAdmin) {
+            serverMemberRepository.updatePermissions(serverId, server.ownerId, MemberPermissions.ADMIN_DEFAULT)
         }
         if (!serverMemberRepository.updateRole(serverId, request.newOwnerId, ServerRole.OWNER)) {
             return CommonStatusCode.FAILURE.emptyData()
@@ -182,20 +206,16 @@ class ServerMemberServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        val role = serverMemberRepository.getByServerAndUser(serverId, callerId)?.role
-        val isSystemAdmin = isSystemAdmin(callerId)
-        return CommonStatusCode.SUCCESS.withData(MyRoleInfo.of(role, isSystemAdmin))
+        // 非成员 → 空权限；系统管理员同样需被分配权限（走正常流程）
+        val member = serverMemberRepository.getByServerAndUser(serverId, callerId)
+        return CommonStatusCode.SUCCESS.withData(MyRoleInfo.of(member))
     }
 
     // ── 权限辅助 ──
 
-    /** 是否为系统管理员（SystemRole.ADMIN，映射原规划的 system_admin） */
-    private suspend fun isSystemAdmin(userId: Long): Boolean =
-        userRepository.getByUid(userId)?.role == SystemRole.ADMIN
-
-    /** 调用者是否为该服务器 owner 或系统管理员（管理成员所需的最低权限） */
-    private suspend fun isOwnerOrSystemAdmin(callerId: Long, serverId: Long): Boolean {
-        if (isSystemAdmin(callerId)) return true
-        return serverMemberRepository.getByServerAndUser(serverId, callerId)?.role == ServerRole.OWNER
+    /** 是否可管理成员：owner（恒有）或具备 canManageMembers 权限位的成员 */
+    private suspend fun canManageMembers(callerId: Long, serverId: Long): Boolean {
+        val member = serverMemberRepository.getByServerAndUser(serverId, callerId) ?: return false
+        return member.role == ServerRole.OWNER || member.permissions.canManageMembers
     }
 }

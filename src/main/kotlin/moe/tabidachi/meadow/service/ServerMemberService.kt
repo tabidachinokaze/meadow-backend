@@ -6,34 +6,34 @@ import moe.tabidachi.meadow.model.Response
 import moe.tabidachi.meadow.model.ServerMemberInfo
 import moe.tabidachi.meadow.model.request.AddMemberRequest
 import moe.tabidachi.meadow.model.request.TransferOwnershipRequest
-import moe.tabidachi.meadow.model.request.UpdateMemberRoleRequest
+import moe.tabidachi.meadow.model.request.UpdateMemberRequest
 
 interface ServerMemberService {
-    /** 获取服务器成员列表（公开信息，脱敏） */
+    /** 获取服务器成员列表（公开信息，脱敏；含权限位供 owner 查看/分配） */
     suspend fun getMembers(serverId: Long): Response<List<ServerMemberInfo>?>
 
-    /** 添加成员（owner / system_admin） */
+    /** 添加成员（owner 或具备 canManageMembers 的成员） */
     suspend fun addMember(callerId: Long, serverId: Long, request: AddMemberRequest): Response<ServerMemberInfo?>
 
-    /** 更新成员角色（owner / system_admin） */
-    suspend fun updateRole(
+    /** 更新成员角色/权限（owner 或具备 canManageMembers 的成员） */
+    suspend fun updateMember(
         callerId: Long,
         serverId: Long,
         userId: Long,
-        request: UpdateMemberRoleRequest,
+        request: UpdateMemberRequest,
     ): Response<ServerMemberInfo?>
 
-    /** 移除成员（owner / system_admin） */
+    /** 移除成员（owner 或具备 canManageMembers 的成员） */
     suspend fun removeMember(callerId: Long, serverId: Long, userId: Long): Response<Long?>
 
-    /** 移交所有权（owner / system_admin） */
+    /** 移交所有权（owner 或具备 canManageMembers 的成员） */
     suspend fun transferOwnership(
         callerId: Long,
         serverId: Long,
         request: TransferOwnershipRequest,
     ): Response<TransferResult?>
 
-    /** 当前用户在服务器中的角色与权限位 */
+    /** 当前用户在服务器中的角色与权限位（非成员/未登录返回空权限） */
     suspend fun getMyRole(callerId: Long, serverId: Long): Response<MyRoleInfo?>
 }
 

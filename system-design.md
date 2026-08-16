@@ -956,14 +956,19 @@ sequenceDiagram
 
 ### 9.10 服务器成员管理 API [已实现]
 
+> 权限模型（v2）：**细粒度权限位**。每个成员（ADMIN/MEMBER）记录独立的 8 个权限位，由 owner 逐项分配；
+> OWNER 恒为全权限；**系统管理员不再自动拥有全部权限**——需被加入服务器并由 owner 分配（走正常流程）。
+> 权限位存储在 `server_member` 表：`can_edit_server, can_manage_rcon, can_manage_members, can_manage_screenshots,
+> can_manage_chat, can_manage_worlds, can_manage_modpack, can_delete_server`。
+
 | 接口                                            | 方法     | 权限                 | 说明                                                                                                                                                                                           |
 |:------------------------------------------------|:---------|:---------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `GET /servers/{server_id}/members`              | 查询     | 公开（脱敏）         | 返回 `{ owner, admins[], members[] }`                                                                                                                                                          |
-| `POST /servers/{server_id}/members`             | 添加     | owner / system_admin | `{ user_id, role: admin\|member }`（不可设为 owner）；已存在 → 409                                                                                                                             |
-| `PATCH /servers/{server_id}/members/{user_id}`  | 改角色   | owner / system_admin | `{ role }`；不能改自己、不能改 system_admin、owner 只能通过移交接口降级                                                                                                                        |
-| `DELETE /servers/{server_id}/members/{user_id}` | 移除     | owner / system_admin | 不能移除自己与 system_admin；owner 需先移交                                                                                                                                                    |
-| `POST /servers/{server_id}/transfer-ownership`  | 移交     | owner / system_admin | `{ new_owner_id, keep_as_admin }`；同步更新 `servers.owner_id`                                                                                                                                 |
-| `GET /servers/{server_id}/my-role`              | 我的角色 | 认证                 | 返回 `{ role, permissions: {can_edit_server, can_manage_members, can_manage_screenshots, can_manage_chat, can_manage_worlds, can_manage_modpack, can_delete_server} }`，供前端动态渲染管理按钮 |
+| `GET /servers/{server_id}/members`              | 查询     | 认证                 | 返回成员列表（含各自 `permissions` 权限位）                                                                                                                                                     |
+| `POST /servers/{server_id}/members`             | 添加     | owner / canManageMembers | `{ user_id, role: admin\|member, permissions? }`（不可设为 owner）；权限不传按角色默认（ADMIN=常规管理位，MEMBER=空）；已存在 → 409 |
+| `PATCH /servers/{server_id}/members/{user_id}`  | 改角色/权限 | owner / canManageMembers | `{ role?, permissions? }`；不能改自己、不能改 owner；role 改为 OWNER 时强制全权限                                                                                                        |
+| `DELETE /servers/{server_id}/members/{user_id}` | 移除     | owner / canManageMembers | 不能移除自己与 owner；owner 需先移交                                                                                                                                                    |
+| `POST /servers/{server_id}/transfer-ownership`  | 移交     | owner / canManageMembers | `{ new_owner_id, keep_as_admin }`；同步更新 `servers.owner_id`；旧 owner 保留为 ADMIN 时按 ADMIN_DEFAULT 重置权限                                                                     |
+| `GET /servers/{server_id}/my-role`              | 我的角色 | 认证                 | 返回 `{ role, permissions }`（8 个权限位）；非成员 → 空权限，供前端动态渲染管理按钮 |
 
 ### 9.11 WebSocket 事件汇总 [已实现]
 
@@ -999,19 +1004,24 @@ sequenceDiagram
 
 ### 9.13 权限矩阵 [已实现]
 
-| 操作                            | owner | admin | member | system_admin |
-|:--------------------------------|:-----:|:-----:|:------:|:------------:|
-| 查看公开信息 / 成员列表         |  ✅   |  ✅   |   ✅   |      ✅      |
-| 查看管理面板                    |  ✅   |  ✅   |   ❌   |      ✅      |
-| 编辑服务器基本信息              |  ✅   |  ✅   |   ❌   |      ✅      |
-| 发布/更新整合包                 |  ✅   |  ✅   |   ❌   |      ✅      |
-| 管理存档（上传/删除/标记当前）  |  ✅   |  ✅   |   ❌   |      ✅      |
-| 审核截图举报 / 删除任意截图     |  ✅   |  ✅   |   ❌   |      ✅      |
-| 撤回聊天消息 / 禁言             |  ✅   |  ✅   |   ❌   |      ✅      |
-| 添加/移除子管理员、修改成员角色 |  ✅   |  ❌   |   ❌   |      ✅      |
-| 移交所有权 / 删除服务器         |  ✅   |  ❌   |   ❌   |      ✅      |
+> **v2 细粒度权限位**：下表为 owner 可分配给 ADMIN/MEMBER 的权限位语义；实际以成员记录中的权限位为准。
+> system_admin 不再自动拥有权限，需作为成员被 owner 分配（默认按 ADMIN_DEFAULT 授予，可再调整）。
 
-> `system_admin` 仅系统初始化时手动创建，不可通过 API 授予。角色层级 `owner(3) > admin(2) > member(1)`，接口校验用层级比较。
+| 权限位                        | owner | admin（按分配） | member（按分配） | system_admin（需分配） |
+|:------------------------------|:-----:|:---------------:|:----------------:|:----------------------:|
+| 查看公开信息 / 成员列表       |  ✅   |        ✅       |        ✅        |           ✅           |
+| 编辑服务器基本信息 `canEditServer` | ✅ | 按分配 | 按分配 | 按分配 |
+| 配置 RCON `canManageRcon`     |  ✅   |     按分配      |     按分配       |        按分配          |
+| 管理成员 `canManageMembers`   |  ✅   |     按分配      |     按分配       |        按分配          |
+| 管理截图 `canManageScreenshots` | ✅  |     按分配      |     按分配       |        按分配          |
+| 管理聊天 `canManageChat`      |  ✅   |     按分配      |     按分配       |        按分配          |
+| 上传存档 `canManageWorlds`    |  ✅   |     按分配      |     按分配       |        按分配          |
+| 发布整合包 `canManageModpack` |  ✅   |     按分配      |     按分配       |        按分配          |
+| 删除服务器 `canDeleteServer`  |  ✅   |     按分配      |     按分配       |        按分配          |
+
+> ADMIN 默认（`ADMIN_DEFAULT`）：`canEditServer / canManageScreenshots / canManageChat / canManageWorlds /
+> canManageModpack = true`，`canManageRcon / canManageMembers / canDeleteServer = false`。MEMBER 默认全 false。
+> owner 可通过成员管理弹窗（🔑 按钮）逐项调整每个成员（含 system_admin 成员）的权限位。
 
 ### 9.14 安全设计规划 [已实现]
 

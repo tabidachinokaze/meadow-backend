@@ -107,8 +107,10 @@ class ScreenshotServiceImpl(
         }
         val shot = screenshotRepository.getById(serverId, screenshotId)
             ?: return ScreenshotStatusCode.SCREENSHOT_NOT_FOUND.emptyData()
-        val isManager = isOwnerOrAdmin(callerId, serverId) || isSystemAdmin(callerId)
-        if (!isManager && shot.uploaderId != callerId) {
+        // 权限位驱动：owner（全权限）或具备 canManageScreenshots 的成员；上传者本人亦可删除
+        val member = serverMemberRepository.getByServerAndUser(serverId, callerId)
+        val canManage = member?.role == ServerRole.OWNER || member?.permissions?.canManageScreenshots == true
+        if (!canManage && shot.uploaderId != callerId) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (!screenshotRepository.delete(serverId, screenshotId)) {
@@ -125,14 +127,6 @@ class ScreenshotServiceImpl(
     }
 
     // ── 辅助 ──
-
-    private suspend fun isSystemAdmin(userId: Long): Boolean =
-        userRepository.getByUid(userId)?.role == SystemRole.ADMIN
-
-    private suspend fun isOwnerOrAdmin(callerId: Long, serverId: Long): Boolean {
-        val role = serverMemberRepository.getByServerAndUser(serverId, callerId)?.role
-        return role == ServerRole.OWNER || role == ServerRole.ADMIN
-    }
 
     private suspend fun moe.tabidachi.meadow.database.model.Screenshot.toInfo(
         serverName: String?,

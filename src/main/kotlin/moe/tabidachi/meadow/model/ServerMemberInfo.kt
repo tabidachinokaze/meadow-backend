@@ -1,6 +1,8 @@
 package moe.tabidachi.meadow.model
 
 import kotlinx.serialization.Serializable
+import moe.tabidachi.meadow.database.model.MemberPermissions
+import moe.tabidachi.meadow.database.model.ServerMember
 import moe.tabidachi.meadow.database.model.ServerRole
 
 /** 服务器成员信息（API 响应，用户信息已脱敏） */
@@ -11,6 +13,8 @@ data class ServerMemberInfo(
     val gameId: String?,
     val avatarUrl: String?,
     val role: ServerRole,
+    /** 细粒度权限位（owner 可分配/查看） */
+    val permissions: MyRoleInfo.Permissions = MyRoleInfo.Permissions(),
     val joinedAt: kotlin.time.Instant?,
 )
 
@@ -33,22 +37,31 @@ data class MyRoleInfo(
     )
 
     companion object {
-        fun of(role: ServerRole?, isSystemAdmin: Boolean): MyRoleInfo {
-            val manage = role == ServerRole.OWNER || role == ServerRole.ADMIN || isSystemAdmin
+        /**
+         * 从成员记录构建权限。
+         * 注意：系统管理员不再自动拥有全部权限——需被加入服务器并由 owner 分配（走正常权限流程）。
+         */
+        fun of(member: ServerMember?): MyRoleInfo {
+            if (member == null) return MyRoleInfo(role = null, permissions = Permissions())
             return MyRoleInfo(
-                role = role,
-                permissions = Permissions(
-                    canEditServer = manage,
-                    // RCON 属敏感配置，仅 owner（或系统管理员）可修改
-                    canManageRcon = role == ServerRole.OWNER || isSystemAdmin,
-                    canManageMembers = role == ServerRole.OWNER || isSystemAdmin,
-                    canManageScreenshots = manage,
-                    canManageChat = manage,
-                    canManageWorlds = manage,
-                    canManageModpack = manage,
-                    canDeleteServer = role == ServerRole.OWNER || isSystemAdmin,
-                ),
+                role = member.role,
+                permissions = fromPermissions(member.permissions),
             )
         }
+
+        /** MemberPermissions（数据库）→ Permissions（API） */
+        fun fromPermissions(p: MemberPermissions): Permissions = Permissions(
+            canEditServer = p.canEditServer,
+            canManageRcon = p.canManageRcon,
+            canManageMembers = p.canManageMembers,
+            canManageScreenshots = p.canManageScreenshots,
+            canManageChat = p.canManageChat,
+            canManageWorlds = p.canManageWorlds,
+            canManageModpack = p.canManageModpack,
+            canDeleteServer = p.canDeleteServer,
+        )
+
+        /** 空权限（非成员） */
+        fun empty(): Permissions = Permissions()
     }
 }

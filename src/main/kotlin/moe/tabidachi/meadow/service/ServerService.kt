@@ -56,8 +56,11 @@ class ServerServiceImpl(
                     serverKey = request.serverKey,
                     machineId = request.machineId,
                 )
-                // 创建服务器后同步写入 owner 成员记录（权限体系，规划 §9.1.2）
-                serverMemberRepository.add(serverId, ownerId, ServerRole.OWNER)
+                // 创建服务器后同步写入 owner 成员记录（权限体系，规划 §9.1.2；OWNER 恒为全权限）
+                serverMemberRepository.add(
+                    serverId, ownerId, ServerRole.OWNER,
+                    moe.tabidachi.meadow.database.model.MemberPermissions.OWNER_ALL
+                )
                 val serverInfo = serverRepository.getServerInfo(serverId)
                 CommonStatusCode.SUCCESS.withData(serverInfo)
             }

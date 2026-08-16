@@ -12,6 +12,14 @@ class ServerMemberEntity(id: EntityID<Long>) : LongEntity(id) {
     var serverId by ServerMemberTable.serverId
     var userId by ServerMemberTable.userId
     var role by ServerMemberTable.role
+    var canEditServer by ServerMemberTable.canEditServer
+    var canManageRcon by ServerMemberTable.canManageRcon
+    var canManageMembers by ServerMemberTable.canManageMembers
+    var canManageScreenshots by ServerMemberTable.canManageScreenshots
+    var canManageChat by ServerMemberTable.canManageChat
+    var canManageWorlds by ServerMemberTable.canManageWorlds
+    var canManageModpack by ServerMemberTable.canManageModpack
+    var canDeleteServer by ServerMemberTable.canDeleteServer
     var joinedAt by ServerMemberTable.joinedAt
     var updatedAt by ServerMemberTable.updatedAt
 }
