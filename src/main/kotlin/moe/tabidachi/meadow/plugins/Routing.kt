@@ -10,6 +10,7 @@ import moe.tabidachi.meadow.routing.admin
 import moe.tabidachi.meadow.routing.auth
 import moe.tabidachi.meadow.routing.chat
 import moe.tabidachi.meadow.routing.chatSocket
+import moe.tabidachi.meadow.routing.contact
 import moe.tabidachi.meadow.routing.favorites
 import moe.tabidachi.meadow.routing.map
 import moe.tabidachi.meadow.routing.mods
@@ -45,7 +46,7 @@ fun Application.configureRouting() {
             modpacks()
             admin()
             map()
-            //contact()
+            contact()
         }
     }
 }

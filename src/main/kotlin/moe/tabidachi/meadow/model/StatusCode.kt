@@ -52,14 +52,14 @@ enum class ServerStatusCode(
     BIND_FAILURE(40306, "绑定失败，请使用本人账号绑定"),
 }
 
-// 验证错误状态码 (03)
+// 验证错误状态码 (04) —— 原 403xx 与 ServerStatusCode 冲突，迁至 404xx（已知问题 #3）
 enum class ValidStatusCode(
     override val code: Int,
     override val message: String
 ) : StatusCode {
-    INVALID_EMAIL(40301, "Invalid email format"),
-    INVALID_PHONE(40302, "Invalid phone number"),
-    INVALID_USERNAME(40303, "Invalid username format"),
+    INVALID_EMAIL(40401, "Invalid email format"),
+    INVALID_PHONE(40402, "Invalid phone number"),
+    INVALID_USERNAME(40403, "Invalid username format"),
 }
 
 inline fun <reified T> StatusCode.withData(data: T): Response<T> =
@@ -68,4 +68,6 @@ inline fun <reified T> StatusCode.withData(data: T): Response<T> =
 inline fun <reified T> StatusCode.emptyData(code: Int = this.code, message: String? = this.message): Response<T?> =
     Response(code = code, message = message ?: this.message, data = null)
 
-val Response<*>.statusCode: StatusCode? get() = (CommonStatusCode.entries + UserStatusCode.entries + ValidStatusCode.entries).find { it.code == code }
+val Response<*>.statusCode: StatusCode?
+    get() = (CommonStatusCode.entries + UserStatusCode.entries + ValidStatusCode.entries + ServerStatusCode.entries)
+        .find { it.code == code }

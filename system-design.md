@@ -565,15 +565,15 @@ sequenceDiagram
 
 ## 8. 规划与 TODO
 
-### 8.1 代码中的 TODO / 占位 [TODO]
+### 8.1 代码中的 TODO / 占位 [已实现]
 
-| 位置                                    | 内容                                                           |
-|:----------------------------------------|:---------------------------------------------------------------|
-| `AuthServiceImpl.sendRegisterCode` 分支 | `SendCodeType.RESET_PASSWORD` → `TODO()`（重置密码发码未实现） |
-| `UserServiceImpl.updateEmail`           | `TODO("Not yet implemented")`（更换邮箱接口未实现）            |
-| `ServerService.publishPublicKey`        | `TODO("Not yet implemented")`                                  |
-| `Routing.kt`                            | `contact()` 被注释（联系人接口不可达）                         |
-| `UserRepository.create`                 | `gameId` 参数被注释（注册时不写 game_id）                      |
+| 位置                                    | 内容                                                           | 状态 |
+|:----------------------------------------|:---------------------------------------------------------------|:-----|
+| `AuthServiceImpl` 密码重置分支           | `SendCodeType.RESET_PASSWORD` → 已实现（发码 + `POST /auth/reset-password`） | ✅ |
+| `UserServiceImpl.updateEmail`           | 已实现（邮箱换绑，见 §11.1）                                    | ✅ |
+| `ServerService.publishPublicKey`        | RSA 公钥交换预留（无 Mod 侧对接需求，保持 TODO）                | ⏳ 预留 |
+| `Routing.kt`                            | `contact()` 已启用（`GET /contacts` 联系人列表）                 | ✅ |
+| `UserRepository.create`                 | `gameId` 注册时不写入，由 MC 绑定流程（`/bind-code` + `/meadow bind`）设置 | ✅ 设计如此 |
 
 ### 8.2 待后端实现的功能模块 [规划中]
 
@@ -996,7 +996,7 @@ sequenceDiagram
 |:-----------|:-------------------------------------------------------------------|:---------------------------------|
 | 密码存储   | Argon2（已实现，见 §4.2）                                          | ✅                               |
 | JWT        | 短期 access + refresh 轮换 / Redis 黑名单，实现 `logout`           | ❌（现 7 天固定，见 §10 #2）     |
-| 密码重置   | 邮箱验证码重置（`RESET_PASSWORD` 分支 TODO）                       | ❌                               |
+| 密码重置   | 邮箱验证码重置（`RESET_PASSWORD` 已实现）                         | ✅                               |
 | 接口限流   | 登录/注册/验证码差异化频率                                         | ⚠️（现仅 email 1 次/分）         |
 | 聊天敏感词 | 敏感词库过滤后存储与广播                                           | ❌                               |
 | 文件上传   | 图片 ≤10MB（JPG/PNG/WebP）；存档/整合包 ≤2GB；服务端校验 MIME/解码 | ⚠️（现头像 ≤1.95MiB 无格式校验） |
@@ -1012,22 +1012,22 @@ sequenceDiagram
 |:---|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------|:---------------------------------------------------------------------------------------------------------|
 | 1  | **`application.yaml` 提交了真实生产凭据**（S3 access/secret、Redis 密码、Resend API Key、`encryption.secret_key`、JWT secret）                                                 | 🔴 严重 | 立即轮换全部密钥；配置改用环境变量/密钥管理，`application.yaml` 只保留占位符并加入 `.gitignore` 历史清理 |
 | 2  | `jwt.secret` 为弱密钥（开发值）且**有效期 7 天硬编码**，无 refresh/黑名单机制                                                                                                  | 🔴 严重 | 密钥随机化 + 环境变量注入；引入 refresh_token 轮换或短期 access + Redis 黑名单；实现 `logout`            |
-| 3  | `ValidStatusCode`(40301–40303) 与 `ServerStatusCode`(40301–40306) **状态码冲突**；`statusCode` 查找不含 ServerStatusCode                                                       | 🟠 中   | 校验模块改码段（如 40401+）；查找逻辑合并所有枚举                                                        |
-| 4  | CORS `anyHost()` + `allowCredentials=true`                                                                                                                                     | 🟠 中   | 生产限定白名单域名                                                                                       |
+| 3  | ~~`ValidStatusCode`(40301–40303) 与 `ServerStatusCode`(40301–40306) 状态码冲突~~ **已修复**：ValidStatusCode 迁至 404xx，`statusCode` 查找合并所有枚举 | ✅ 已修复 |
+| 4  | ~~CORS `anyHost()` + `allowCredentials=true`~~ **已修复**：白名单从 `cors.allowed_hosts` 配置读取，未配置时开发环境 anyHost | ✅ 已修复 |
 | 5  | `bindingUsers` 为 JVM 内存 Map，**重启/多实例丢失**                                                                                                                            | 🟠 中   | 改为 Redis 存储（key `bind:user:{gameId}`，TTL 5min）或改为「服务器内验证码」模型                        |
 | 6  | DI 中 `ktor.development==true` 反而连 **H2 测试库**，与直觉相反                                                                                                                | 🟡 低   | 用独立配置项（如 `ktor.deployment.env`）区分环境                                                         |
 | 7  | `Monitoring` 存在 `if (false)` 死代码且**全量打印请求/响应体**（含敏感信息）                                                                                                   | 🟠 中   | 移除死代码；日志脱敏/仅记录元信息                                                                        |
-| 8  | `GET /servers/{id}` 等服务器接口整体置于 JWT 认证内（公开浏览受限）；`/contacts` 被注释                                                                                        | 🟡 低   | 按资源区分公开/私有；启用或移除联系人路由                                                                |
+| 8  | ~~服务器列表/详情置于 JWT 内；/contacts 被注释~~ **已修复**：列表/详情公开（匿名可读），`/contacts` 已启用 | ✅ 已修复 |
 | 9  | 登录逻辑中 `request.password.length < 8` 直接返回 40207（密码过弱）                                                                                                            | 🟡 低   | 登录不应校验密码长度策略，改为仅校验格式/匹配                                                            |
 | 10 | 注册时 `game_id` 写入被注释，用户需走绑定流程才能获得 game_id                                                                                                                  | 🟡 低   | 明确产品流程：注册即写 game_id 或注册后强制引导绑定                                                      |
 | 11 | 验证码限流仅 1 次/分钟，可能影响正常用户多次尝试                                                                                                                               | 🟡 低   | 按场景（注册/登录）差异化：如 5 次/10 分钟                                                               |
-| 12 | 验证码 key 跨类型覆盖：`email:code:{email}` 在 REGISTER/LOGIN 间共用，同一邮箱短时间发送不同类型会互相覆盖（EMAIL_REBIND 已用 `email:code:REBIND:{email}` 规避） | 🟠 中   | key 带类型前缀，如 `email:code:{type}:{email}`（REGISTER/LOGIN 待迁移）                                 |
-| 13 | 客户端参数错误（如缺失 query 参数、JSON 解析失败）被 `StatusPages.exception<Throwable>` 统一映射为 `50000 系统繁忙`（`PARAM_ERROR`(40000) 已定义但从未使用）                   | 🟠 中   | 对 `MissingRequestParameterException`/`SerializationException` 单独映射 40000/400 状态                   |
-| 14 | 可选认证路由（`/users/{uid}`、`/servers/{id}/bind`、`/servers/{id}/init`）对**无效 token 放行**：JWT 校验失败后嵌套的 `none` provider 仍设置 principal，请求照常处理且视为匿名 | 🟠 中   | 明确语义：无效 token 应返回 401，或改为"带 token 必须有效"的认证中间件                                   |
-| 15 | `POST /users/{uid}/update` 与改密接口**缺少格式/强度校验**（注册有 RegexEmail/RegexUsernameStrict/密码≥8，更新路径均无；与注册不一致）                                         | 🟡 低   | 更新路径复用注册的校验规则                                                                               |
+| 12 | ~~验证码 key 跨类型覆盖~~ **已修复**：全部类型统一 `email:code:{type}:{email}`（REGISTER/LOGIN/REBIND/RESET_PASSWORD） | ✅ 已修复 |
+| 13 | ~~客户端参数错误映射 50000~~ **已修复**：缺失参数/JSON 解析失败/参数格式错误 → 40000 | ✅ 已修复 |
+| 14 | ~~无效 token 放行~~ **已修复**：OptionalJwtProvider 带 token 必须有效，无效 → 40101；无 token 匿名 | ✅ 已修复 |
+| 15 | ~~更新接口缺少格式校验~~ **已修复**：update 路径复用 RegexEmail/RegexUsernameStrict | ✅ 已修复 |
 | 16 | `POST /servers/{id}/init` **无身份校验**：任何持有 `server_key` 的调用者即可覆写任意服务器的 `machine_id` 并置 `is_verified=true`（serverKey 即唯一凭证，泄露即接管）          | 🟠 中   | 密钥轮换机制 + init 增加设备指纹/时限校验                                                                |
 | 17 | 服务器删除无级联清理（无相关从表）                                                                                                                                             | 🟡 低   | 从表实现后补级联删除策略                                                                                 |
-| 18 | 上传头像未做图片格式/尺寸校验（仅大小限制），多文件 part 时后者静默覆盖，空/超限文件静默忽略                                                                                   | 🟡 低   | 增加 MIME 白名单与图片解码校验；对多文件/空文件明确报错                                                  |
+| 18 | ~~头像无格式校验~~ **已修复**：MIME 白名单（PNG/JPEG/WebP），非白名单拒绝 | ✅ 已修复 |
 | 19 | 唯一性预检与数据库唯一索引之间无并发保护：并发注册/更新同名时抛数据库异常 → 50000                                                                                              | 🟡 低   | 捕获唯一约束异常映射为 409/402xx                                                                         |
 
 ---
@@ -1041,14 +1041,15 @@ sequenceDiagram
 | Auth    | POST               | `/auth/register`          | 公开       | ✅                             |
 | Auth    | POST               | `/auth/login/password`    | 公开       | ✅                             |
 | Auth    | POST               | `/auth/login/code`        | 公开       | ✅                             |
-| Auth    | POST               | `/send-code?email=&type=` | 公开       | ✅（REGISTER/LOGIN/EMAIL_REBIND；RESET_PASSWORD 分支 TODO） |
+| Auth    | POST               | `/auth/reset-password`    | 公开       | ✅（邮箱验证码重置密码）       |
+| Auth    | POST               | `/send-code?email=&type=` | 公开       | ✅（REGISTER/LOGIN/RESET_PASSWORD/EMAIL_REBIND，key 带类型前缀） |
 | User    | GET                | `/users/{uid}`            | 可选       | ✅                             |
 | User    | POST               | `/users/{uid}/update`     | JWT        | ✅                             |
 | User    | POST               | `/users/{uid}/avatar`     | JWT        | ✅（multipart ≤1.95 MiB）      |
 | User    | POST               | `/users/{uid}/password`   | JWT        | ✅                             |
 | User    | POST               | `/users/{uid}/email`      | JWT        | ✅（邮箱换绑：新邮箱+验证码）  |
 | User    | POST               | `/users/{uid}/deactivate` | JWT        | ✅（注销账号，软删除）         |
-| User    | GET                | `/contacts`               | JWT        | ⛔ 路由被注释                  |
+| User    | GET                | `/contacts`               | JWT        | ✅（已启用）                   |
 | Servers | GET                | `/servers`                | 公开      | ✅（匿名可读，脱敏；写操作需 JWT） |
 | Servers | POST               | `/servers`                | JWT        | ✅                             |
 | Servers | GET                | `/servers/{id}`           | 公开      | ✅（匿名可读，脱敏；owner 登录可见完整字段） |

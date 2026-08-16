@@ -5,6 +5,7 @@ import moe.tabidachi.meadow.model.request.RebindEmailRequest
 import moe.tabidachi.meadow.model.request.UpdatePasswordRequest
 import moe.tabidachi.meadow.model.request.UpdateUserInfoRequest
 import moe.tabidachi.meadow.regex.RegexEmail
+import moe.tabidachi.meadow.regex.RegexUsernameStrict
 import moe.tabidachi.meadow.repository.UserRelationRepository
 import moe.tabidachi.meadow.repository.UserRepository
 import moe.tabidachi.meadow.security.CaptchaValidator
@@ -47,6 +48,15 @@ class UserServiceImpl(
         return if (callingUserId == targetUserId) {
             if (request.isEmpty()) {
                 return CommonStatusCode.FAILURE.emptyData()
+            }
+            // 更新路径复用注册校验规则（已知问题 #15）
+            if (request.email != null && !RegexEmail.matches(request.email)) {
+                return ValidStatusCode.INVALID_EMAIL.emptyData()
+            }
+            if (request.username != null &&
+                (request.username.length !in 2..32 || !RegexUsernameStrict.matches(request.username))
+            ) {
+                return ValidStatusCode.INVALID_USERNAME.emptyData()
             }
             val user = userRepository.getByUid(targetUserId) ?: return UserStatusCode.USER_NOT_FOUND.emptyData()
             val userByUsername = request.username?.let { userRepository.getByUsername(it) }

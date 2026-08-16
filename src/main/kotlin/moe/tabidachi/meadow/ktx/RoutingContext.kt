@@ -12,14 +12,21 @@ val RoutingContext.callingUserId: Long
 val RoutingContext.callingUserIdOrNull: Long?
     get() = call.principal<JWTPrincipal>()?.getClaim(Claims.UID, Long::class)
 
+@Suppress("UNCHECKED_CAST")
 inline fun <reified T> RoutingContext.getParameter(name: String): T {
+    val raw = call.parameters[name] ?: throw MissingRequestParameterException(name, "path")
     return when (T::class) {
-        String::class -> call.parameters[name] as T
-        Int::class -> call.parameters[name]?.toIntOrNull() as T
-        Long::class -> call.parameters[name]?.toLongOrNull() as T
-        Double::class -> call.parameters[name]?.toDoubleOrNull() as T
-        Float::class -> call.parameters[name]?.toFloatOrNull() as T
-        Boolean::class -> call.parameters[name]?.toBoolean() as T
-        else -> call.parameters[name]?.let { return it as T }
-    } ?: throw MissingRequestParameterException(name, "path")
+        String::class -> raw as T
+        Int::class -> (raw.toIntOrNull()
+            ?: throw BadRequestException("参数 ${name} 必须是整数")) as T
+        Long::class -> (raw.toLongOrNull()
+            ?: throw BadRequestException("参数 ${name} 必须是整数")) as T
+        Double::class -> (raw.toDoubleOrNull()
+            ?: throw BadRequestException("参数 ${name} 必须是数字")) as T
+        Float::class -> (raw.toFloatOrNull()
+            ?: throw BadRequestException("参数 ${name} 必须是数字")) as T
+        Boolean::class -> (raw.toBooleanStrictOrNull()
+            ?: throw BadRequestException("参数 ${name} 必须是布尔值")) as T
+        else -> raw as T
+    }
 }

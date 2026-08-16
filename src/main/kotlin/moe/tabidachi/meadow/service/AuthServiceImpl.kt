@@ -29,7 +29,7 @@ class AuthServiceImpl(
             request.username.length !in 2..32 || !RegexUsernameStrict.matches(request.username) -> ValidStatusCode.INVALID_USERNAME.emptyData()
             userRepository.getByEmail(request.email) != null -> UserStatusCode.EMAIL_ALREADY_EXISTS.emptyData()
             userRepository.getByUsername(request.username) != null -> UserStatusCode.USERNAME_ALREADY_EXISTS.emptyData()
-            else -> when (captchaValidator.validate("email:code:${request.email}", request.verificationCode)) {
+            else -> when (captchaValidator.validate("email:code:REGISTER:${request.email}", request.verificationCode)) {
                 CaptchaValidator.ValidationResult.ERROR -> UserStatusCode.VERIFICATION_CODE_ERROR.emptyData()
                 CaptchaValidator.ValidationResult.EXPIRED -> UserStatusCode.VERIFICATION_CODE_EXPIRED.emptyData()
                 CaptchaValidator.ValidationResult.CORRECT -> {
@@ -79,7 +79,7 @@ class AuthServiceImpl(
     override suspend fun loginByCode(request: CodeLoginRequest): Response<String?> {
         return when {
             !RegexEmail.matches(request.email) -> ValidStatusCode.INVALID_EMAIL.emptyData()
-            else -> when (captchaValidator.validate("email:code:${request.email}", request.verificationCode)) {
+            else -> when (captchaValidator.validate("email:code:LOGIN:${request.email}", request.verificationCode)) {
                 CaptchaValidator.ValidationResult.ERROR -> UserStatusCode.VERIFICATION_CODE_ERROR.emptyData()
                 CaptchaValidator.ValidationResult.EXPIRED -> UserStatusCode.VERIFICATION_CODE_EXPIRED.emptyData()
                 CaptchaValidator.ValidationResult.CORRECT -> {
@@ -102,7 +102,7 @@ class AuthServiceImpl(
         return when {
             !RegexEmail.matches(email) -> ValidStatusCode.INVALID_EMAIL.emptyData()
             userRepository.getByEmail(email) != null -> UserStatusCode.EMAIL_ALREADY_EXISTS.emptyData()
-            else -> sendCode(email)
+            else -> sendCode("REGISTER", email)
         }
     }
 
@@ -110,7 +110,7 @@ class AuthServiceImpl(
         return when {
             !RegexEmail.matches(email) -> ValidStatusCode.INVALID_EMAIL.emptyData()
             userRepository.getByEmail(email) == null -> UserStatusCode.USER_NOT_REGISTERED.emptyData()
-            else -> sendCode(email)
+            else -> sendCode("LOGIN", email)
         }
     }
 
@@ -118,17 +118,51 @@ class AuthServiceImpl(
         return when {
             !RegexEmail.matches(email) -> ValidStatusCode.INVALID_EMAIL.emptyData()
             userRepository.getByEmail(email) != null -> UserStatusCode.EMAIL_ALREADY_EXISTS.emptyData()
-            else -> {
-                // 带类型前缀的 key，避免与 REGISTER/LOGIN 验证码互相覆盖（已知问题 #12）
-                val code = captchaValidator.generate("email:code:REBIND:${email}")
-                val result = postman.sendVerificationCode(
-                    recipient = email,
-                    code = code
-                )
-                if (result.isSuccess) {
-                    CommonStatusCode.SUCCESS.withData(result.getOrNull())
-                } else {
-                    CommonStatusCode.INTERNAL_SERVER_ERROR.emptyData(message = result.exceptionOrNull()?.message)
+            else -> sendCode("REBIND", email)
+        }
+    }
+
+    override suspend fun sendResetPasswordCode(email: String): Response<String?> {
+        return when {
+            !RegexEmail.matches(email) -> ValidStatusCode.INVALID_EMAIL.emptyData()
+            userRepository.getByEmail(email) == null -> UserStatusCode.USER_NOT_REGISTERED.emptyData()
+            else -> sendCode("RESET_PASSWORD", email)
+        }
+    }
+
+    /** 统一发送验证码：key 带类型前缀 `email:code:{type}:{email}`，避免跨类型覆盖（已知问题 #12） */
+    private suspend fun sendCode(type: String, email: String): Response<String?> {
+        val code = captchaValidator.generate("email:code:${type}:${email}")
+        val result = postman.sendVerificationCode(
+            recipient = email,
+            code = code
+        )
+        return if (result.isSuccess) {
+            CommonStatusCode.SUCCESS.withData(result.getOrNull())
+        } else {
+            CommonStatusCode.INTERNAL_SERVER_ERROR.emptyData(message = result.exceptionOrNull()?.message)
+        }
+    }
+
+    override suspend fun resetPassword(
+        email: String,
+        verificationCode: String,
+        newPassword: String,
+    ): Response<String?> {
+        return when {
+            !RegexEmail.matches(email) -> ValidStatusCode.INVALID_EMAIL.emptyData()
+            newPassword.length < 8 -> UserStatusCode.PASSWORD_TOO_WEAK.emptyData()
+            userRepository.getByEmail(email) == null -> UserStatusCode.USER_NOT_REGISTERED.emptyData()
+            else -> when (captchaValidator.validate("email:code:RESET_PASSWORD:${email}", verificationCode)) {
+                CaptchaValidator.ValidationResult.ERROR -> UserStatusCode.VERIFICATION_CODE_ERROR.emptyData()
+                CaptchaValidator.ValidationResult.EXPIRED -> UserStatusCode.VERIFICATION_CODE_EXPIRED.emptyData()
+                CaptchaValidator.ValidationResult.CORRECT -> {
+                    val user = userRepository.getByEmail(email)!!
+                    if (userRepository.updatePassword(user.uid, newPassword)) {
+                        CommonStatusCode.SUCCESS.emptyData()
+                    } else {
+                        CommonStatusCode.FAILURE.emptyData()
+                    }
                 }
             }
         }

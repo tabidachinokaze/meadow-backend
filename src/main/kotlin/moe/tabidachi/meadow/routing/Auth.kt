@@ -16,6 +16,7 @@ import moe.tabidachi.meadow.model.ValidStatusCode
 import moe.tabidachi.meadow.model.request.CodeLoginRequest
 import moe.tabidachi.meadow.model.request.PasswordLoginRequest
 import moe.tabidachi.meadow.model.request.RegisterRequest
+import moe.tabidachi.meadow.model.request.ResetPasswordRequest
 import moe.tabidachi.meadow.model.request.SendCodeType
 import moe.tabidachi.meadow.service.AuthService
 
@@ -106,6 +107,40 @@ fun Route.auth() {
                 }
             }
         }
+        post<ResetPasswordRequest>("/reset-password") { request ->
+            call.respond(
+                authService.resetPassword(
+                    email = request.email,
+                    verificationCode = request.verificationCode,
+                    newPassword = request.newPassword,
+                )
+            )
+        }.describe {
+            summary = "重置密码"
+            requestBody {
+                schema = jsonSchema<ResetPasswordRequest>()
+            }
+            responses {
+                HttpStatusCode.OK {
+                    description = buildString {
+                        appendLine("code:")
+                        listOf(
+                            ValidStatusCode.INVALID_EMAIL,
+                            UserStatusCode.PASSWORD_TOO_WEAK,
+                            UserStatusCode.USER_NOT_REGISTERED,
+                            UserStatusCode.VERIFICATION_CODE_ERROR,
+                            UserStatusCode.VERIFICATION_CODE_EXPIRED,
+                            CommonStatusCode.SUCCESS
+                        ).forEach {
+                            appendLine("- ${it.code}: ${it.message}")
+                        }
+                        appendLine()
+                        appendLine("data: null")
+                    }
+                    schema = jsonSchema<Response<String?>>()
+                }
+            }
+        }
     }
 
     rateLimit(RateLimitNames.email) {
@@ -116,7 +151,7 @@ fun Route.auth() {
             val response = when (SendCodeType.valueOf(type)) {
                 SendCodeType.REGISTER -> authService.sendRegisterCode(email)
                 SendCodeType.LOGIN -> authService.sendLoginCode(email)
-                SendCodeType.RESET_PASSWORD -> TODO()
+                SendCodeType.RESET_PASSWORD -> authService.sendResetPasswordCode(email)
                 SendCodeType.EMAIL_REBIND -> authService.sendEmailRebindCode(email)
             }
             call.respond(response)

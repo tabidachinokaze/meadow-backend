@@ -94,15 +94,21 @@ fun Route.user() {
         val multipart = call.receiveMultipart()
         var uploadedUrl: String? = null
 
+        // 图片 MIME 白名单（已知问题 #18）：仅允许常见图片格式
+        val allowedImageTypes = setOf(
+            ContentType.Image.PNG.toString(),
+            ContentType.Image.JPEG.toString(),
+            "image/webp",
+        )
+
         multipart.forEachPart { part ->
             when (part) {
                 is PartData.FileItem -> {
+                    val mimeType = part.contentType?.toString() ?: ContentType.Image.PNG.toString()
                     val fileBytes = part.provider().toByteArray()
 
-                    if (fileBytes.isNotEmpty() && fileBytes.size <= 2 * 1024 * 1000) {
+                    if (mimeType in allowedImageTypes && fileBytes.isNotEmpty() && fileBytes.size <= 2 * 1024 * 1000) {
                         val uniqueFileName = "${callingUserId}_${Uuid.random().toHexString()}.png"
-                        val mimeType = part.contentType?.toString() ?: ContentType.Image.PNG.toString()
-
                         uploadedUrl = storageService.uploadAvatar(
                             bytes = fileBytes,
                             fileName = uniqueFileName,
