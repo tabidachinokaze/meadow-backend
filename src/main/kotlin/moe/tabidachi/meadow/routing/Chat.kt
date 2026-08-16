@@ -106,14 +106,15 @@ fun Route.chatSocket() {
     }
 
     // Agent 专用 WS：server_key + machine_id 认证，接收该服务器全部消息广播（规划 §9.12）
+    // 凭据走请求头（X-Server-Key / X-Machine-Id），避免进 URL 造成日志泄露
     webSocket("/ws/agent") {
         val serverId = call.request.queryParameters["server_id"]?.toLongOrNull()
         if (serverId == null) {
             close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "missing server_id"))
             return@webSocket
         }
-        val serverKey = call.request.queryParameters["server_key"]
-        val machineId = call.request.queryParameters["machine_id"]
+        val serverKey = call.request.headers["X-Server-Key"]
+        val machineId = call.request.headers["X-Machine-Id"]
         val server = serverRepository.getById(serverId)
         if (server == null || server.serverKey != serverKey || server.machineId != machineId) {
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "unauthorized"))
