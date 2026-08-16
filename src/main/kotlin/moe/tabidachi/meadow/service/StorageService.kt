@@ -57,11 +57,10 @@ class S3Service(
         contentType: String
     ): String {
         ensureBucket(avatarBucket)
-        val objectKey = "${avatarBucket}/$fileName"
 
         val request = PutObjectRequest {
             bucket = avatarBucket
-            key = objectKey
+            key = fileName
             this.contentType = contentType
             acl = aws.sdk.kotlin.services.s3.model.ObjectCannedAcl.PublicRead
             body = ByteStream.fromBytes(bytes)
@@ -69,7 +68,7 @@ class S3Service(
 
         s3Client.putObject(request)
 
-        return buildUrl(objectKey)
+        return buildUrl(avatarBucket, fileName)
     }
 
     override suspend fun uploadScreenshot(
@@ -78,11 +77,10 @@ class S3Service(
         contentType: String
     ): String {
         ensureBucket(screenshotBucket)
-        val objectKey = "${screenshotBucket}/$fileName"
 
         val request = PutObjectRequest {
             bucket = screenshotBucket
-            key = objectKey
+            key = fileName
             this.contentType = contentType
             acl = aws.sdk.kotlin.services.s3.model.ObjectCannedAcl.PublicRead
             body = ByteStream.fromBytes(bytes)
@@ -90,7 +88,7 @@ class S3Service(
 
         s3Client.putObject(request)
 
-        return buildUrl(objectKey)
+        return buildUrl(screenshotBucket, fileName)
     }
 
     override suspend fun uploadFile(
@@ -100,11 +98,10 @@ class S3Service(
         contentType: String,
     ): String {
         ensureBucket(bucketName)
-        val objectKey = "$bucketName/$fileName"
 
         val request = PutObjectRequest {
             bucket = bucketName
-            key = objectKey
+            key = fileName
             this.contentType = contentType
             acl = aws.sdk.kotlin.services.s3.model.ObjectCannedAcl.PublicRead
             body = ByteStream.fromBytes(bytes)
@@ -112,14 +109,16 @@ class S3Service(
 
         s3Client.putObject(request)
 
-        return buildUrl(objectKey)
+        return buildUrl(bucketName, fileName)
     }
 
-    private fun buildUrl(objectKey: String): String {
+    private fun buildUrl(bucketName: String, objectKey: String): String {
         return URLBuilder().apply {
-            protocol = URLProtocol.HTTPS
+            // 与 SharedS3Client endpoint 一致：HTTP + 配置端口（自建 S3 兼容服务）
+            protocol = URLProtocol.HTTP
             host = s3Config.host
-            path(objectKey)
+            port = s3Config.port
+            path(bucketName, objectKey)
         }.buildString()
     }
 }
