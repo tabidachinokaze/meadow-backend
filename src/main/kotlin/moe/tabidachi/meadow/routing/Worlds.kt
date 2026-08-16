@@ -72,11 +72,8 @@ fun Route.worlds() {
             get("/download") {
                 val serverId = getParameter<Long>("id")
                 val worldId = getParameter<Long>("wid")
-                // 流式代理下载：从 S3 读取字节直接返回（同源 HTTPS，避免混合内容）
-                worldService.downloadStream(serverId, worldId)?.let { (bytes, name) ->
-                    call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"$name\"")
-                    call.respondBytes(bytes, ContentType.Application.Zip)
-                } ?: call.respond(WorldStatusCode.WORLD_NOT_FOUND.emptyData<String>())
+                // 返回预签名 S3 URL（HTTPS，前端直接下载）
+                call.respond(worldService.download(serverId, worldId))
             }
 
             patch("/set-current") {

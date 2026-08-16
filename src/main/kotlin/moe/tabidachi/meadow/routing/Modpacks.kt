@@ -30,11 +30,8 @@ fun Route.modpacks() {
 
         get("/modpack/download") {
             val serverId = getParameter<Long>("id")
-            // 流式代理下载：从 S3 读取字节直接返回（同源 HTTPS）
-            modpackService.downloadStream(serverId)?.let { (bytes, name) ->
-                call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"$name\"")
-                call.respondBytes(bytes, ContentType.Application.Zip)
-            } ?: call.respond(ModpackStatusCode.MODPACK_NOT_FOUND.emptyData<String>())
+            // 返回预签名 S3 URL（HTTPS，前端直接下载）
+            call.respond(modpackService.download(serverId))
         }
 
         post("/modpack") {
