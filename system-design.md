@@ -56,14 +56,26 @@ flowchart TB
 - **入口**：`io.ktor.server.cio.EngineMain`，端口 **23333**（`application.yaml`）。
 - **配置加载**：Ktor HOCON 配置（`application.yaml`），模块注册顺序见 `plugins/`：DI → Security → CORS → Monitoring →
   RateLimit → Routing → Serialization → Sockets → StatusPages。
+- **环境变量注入**：全部密钥/环境开关支持 `${MEADOW_*}` 环境变量覆盖（`application.example.yaml` 为模板，
+  真实 `application.yaml` 由 `.gitignore` 保护，不入库）。
 - **数据库选择逻辑（注意）**：DI 中 `ktor.development == true` 时选择 `database.test`（H2 文件库），否则 `database.main`
-  （PostgreSQL）——即 **开发模式默认连 H2**，与直觉相反。
+  （PostgreSQL）——即 **开发模式默认连 H2**，与直觉相反；生产部署必须设置 `MEADOW_DEVELOPMENT=false`。
 - **自动建表**：启动时 `SchemaUtils.create(UserTable, UserRelationTable, ServerTable)`（仅建缺失表，不迁移）。
 - **对象存储**：AWS S3 SDK（Kotlin），`region = "us-east-1"`，endpoint 为 `https://{s3.host}:443`（443 反代到自建
   RustFS 9000，`forcePathStyle=true`），凭据来自 `s3.access_key/secret_key`；当前用于头像/Banner（bucket `avatar`）
   与截图/存档/整合包。**直链策略（既定方案）**：不用代理路径，一律返回 `https://storage.tabidachi.moe/{bucket}/{key}`
   形式的 S3 直链；上传返回的对象 URL 由存储桶公开读支撑，列表/下载场景由 `StorageService.presignObjectUrl` 生成
   15 分钟预签名 URL 返回。
+- **细粒度权限**：`PermissionGuard`（`service/PermissionGuard.kt`）统一校验权限位（OWNER 恒全权限，其余按成员
+  `server_member` 表权限位）；所有管理操作（编辑/RCON/成员/截图/聊天/存档/整合包/删除）均按位校验，系统管理员
+  需被分配权限（走正常流程）。
+- **服务级事务**：注册服务器、移交所有权、举报/审核、整合包发布、Agent 状态上报等组合写操作在服务层用
+  `database.withTransaction` 包裹，保证原子性（内部仓储的嵌套事务共享同一事务）。
+- **上传防护**：multipart 文件流式读取（`ktx/Multipart.kt#readBytesWithLimit`）边读边限长，超限即中止，
+  杜绝整块读入内存导致的 OOM DoS。
+- **部署/CI**：`Dockerfile`（多阶段、非 root、`/healthz` 健康探针）、`docker-compose.yml`（postgres/redis/minio/
+  backend）、GitHub Actions（后端 JDK21 编译+测试+installDist+**gitleaks 密钥扫描**、前端 tsc+oxlint+build、
+  Mod JDK25 编译）。
 
 ---
 
@@ -1058,13 +1070,13 @@ sequenceDiagram
 
 | #  | 问题                                                                                                                                                                           | 严重度  | 建议                                                                                                     |
 |:---|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------|:---------------------------------------------------------------------------------------------------------|
-| 1  | **`application.yaml` 提交了真实生产凭据**（S3 access/secret、Redis 密码、Resend API Key、`encryption.secret_key`、JWT secret）                                                 | 🔴 严重 | 立即轮换全部密钥；配置改用环境变量/密钥管理，`application.yaml` 只保留占位符并加入 `.gitignore` 历史清理 |
-| 2  | `jwt.secret` 为弱密钥（开发值）且**有效期 7 天硬编码**，无 refresh/黑名单机制                                                                                                  | 🔴 严重 | 密钥随机化 + 环境变量注入；引入 refresh_token 轮换或短期 access + Redis 黑名单；实现 `logout`            |
+| 1  | ~~`application.yaml` 提交了真实生产凭据~~ **已修复**：全部密钥改 `${MEADOW_*}` 环境变量注入，真实配置由 `.gitignore` 保护，`application.example.yaml` 仅占位符；CI 加 gitleaks 密钥扫描 | ✅ 已修复 |
+| 2  | ~~`jwt.secret` 为弱密钥且 7 天硬编码~~ **部分修复**：密钥随机化 + 环境变量注入（默认值非 114514）；token 与用户状态绑定（tv/ca/存在性/激活）；仍无 refresh/黑名单 | ⚠️ 部分 | 引入 refresh_token 轮换或短期 access + Redis 黑名单；实现 `logout` |
 | 3  | ~~`ValidStatusCode`(40301–40303) 与 `ServerStatusCode`(40301–40306) 状态码冲突~~ **已修复**：ValidStatusCode 迁至 404xx，`statusCode` 查找合并所有枚举 | ✅ 已修复 |
 | 4  | ~~CORS `anyHost()` + `allowCredentials=true`~~ **已修复**：白名单从 `cors.allowed_hosts` 配置读取，未配置时开发环境 anyHost | ✅ 已修复 |
 | 5  | `bindingUsers` 为 JVM 内存 Map，**重启/多实例丢失**                                                                                                                            | 🟠 中   | 改为 Redis 存储（key `bind:user:{gameId}`，TTL 5min）或改为「服务器内验证码」模型                        |
 | 6  | DI 中 `ktor.development==true` 反而连 **H2 测试库**，与直觉相反                                                                                                                | 🟡 低   | 用独立配置项（如 `ktor.deployment.env`）区分环境                                                         |
-| 7  | `Monitoring` 存在 `if (false)` 死代码且**全量打印请求/响应体**（含敏感信息）                                                                                                   | 🟠 中   | 移除死代码；日志脱敏/仅记录元信息                                                                        |
+| 7  | ~~`Monitoring` 存在 `if (false)` 死代码且全量打印请求/响应体~~ **已修复**：删除 BodyLogger/死代码，仅记录 method/path/status/耗时；StatusPages 不再透传异常原文 | ✅ 已修复 |
 | 8  | ~~服务器列表/详情置于 JWT 内；/contacts 被注释~~ **已修复**：列表/详情公开（匿名可读），`/contacts` 已启用 | ✅ 已修复 |
 | 9  | 登录逻辑中 `request.password.length < 8` 直接返回 40207（密码过弱）                                                                                                            | 🟡 低   | 登录不应校验密码长度策略，改为仅校验格式/匹配                                                            |
 | 10 | 注册时 `game_id` 写入被注释，用户需走绑定流程才能获得 game_id                                                                                                                  | 🟡 低   | 明确产品流程：注册即写 game_id 或注册后强制引导绑定                                                      |
