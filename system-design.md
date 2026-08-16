@@ -440,7 +440,14 @@ Argon2； **`game_id` 写入在代码中被注释，当前注册不写入 game_i
 
 非 owner → 40102；不存在 → 40302；成功返回 `data: serverId`。
 
-#### 5.3.6 申请游戏账号绑定验证码 — `GET /bind-code?name={gameId}`（认证）
+#### 5.3.6 更换服务器 Banner — `POST /servers/{id}/banner`（认证，仅 owner，multipart）
+
+- 字段：`file`（≤ 5,120,000 字节 ≈ 4.88 MiB，代码为 `5 * 1024 * 1000`；MIME 白名单 PNG/JPEG/WebP）。
+- 流程：接收文件 → 上传 S3（bucket `avatar`，文件名 `s_{serverId}_{uuid}.png`）→ 回调 `update(ServerUpdateRequest(bannerUrl=...))` 更新 `banner_url`。
+- 非 owner → 40102；失败（无文件/超限/类型不符/上传失败）：30000。
+- 前端也支持直接传 `banner_url` 链接（走 5.3.4 更新接口）。
+
+#### 5.3.7 申请游戏账号绑定验证码 — `GET /bind-code?name={gameId}`（认证）
 
 业务逻辑：用户不存在 → 40201；`gameId` 已属于本人或已被他人占用 → 40213；生成验证码（Redis `bind:code:{uid}:{gameId}`，TTL 5
 分钟）并 **在 JVM 内存 Map `bindingUsers[gameId] = uid` 中登记**。
@@ -449,7 +456,7 @@ Argon2； **`game_id` 写入在代码中被注释，当前注册不写入 game_i
 
 > ⚠️ `bindingUsers` 为内存态， **进程重启/多实例部署会丢失**，见 §10。
 
-#### 5.3.7 确认游戏绑定 — `POST /servers/{id}/bind`（无认证）
+#### 5.3.8 确认游戏绑定 — `POST /servers/{id}/bind`（无认证）
 
 请求体（`GameIdBindRequest`）：`uuid, name, code, machine_id, server_key`。
 
@@ -460,7 +467,7 @@ Argon2； **`game_id` 写入在代码中被注释，当前注册不写入 game_i
 > **当前校验要求 `server_key`/`machine_id` 与服务器记录一致，即绑定操作须在已注册并初始化的服务器上执行**。
 > 注：请求体中的 `uuid` 字段当前在服务层未被使用（仅 `name`/`code` 参与校验）。
 
-#### 5.3.8 服务器初始化 — `POST /servers/{id}/init`（无认证）
+#### 5.3.9 服务器初始化 — `POST /servers/{id}/init`（无认证）
 
 请求体（`ServerInitializeRequest`）：`server_key, machine_id`。
 
@@ -1072,6 +1079,7 @@ sequenceDiagram
 | Servers | POST               | `/servers`                | JWT        | ✅                             |
 | Servers | GET                | `/servers/{id}`           | 公开      | ✅（匿名可读，脱敏；owner 登录可见完整字段） |
 | Servers | PUT                | `/servers/{id}`           | JWT(owner) | ✅                             |
+| Servers | POST               | `/servers/{id}/banner`    | JWT(owner) | ✅（multipart ≤4.88 MiB，PNG/JPEG/WebP） |
 | Servers | DELETE             | `/servers/{id}`           | JWT(owner) | ✅                             |
 | Servers | GET                | `/bind-code?name=`        | JWT        | ✅                             |
 | Servers | POST               | `/servers/{id}/bind`      | 无         | ✅                             |
