@@ -1,4 +1,6 @@
 # meadow-backend (multi-stage: gradle build -> jre run, non-root)
+# 注意：必须用 glibc 基础镜像（eclipse-temurin:*-jre，基于 Ubuntu）——
+# Argon2 的 JNA 原生库在 Alpine(musl) 上会 SIGSEGV 崩溃。
 FROM gradle:8.14-jdk21 AS build
 WORKDIR /app
 COPY --chown=gradle:gradle . .
@@ -7,8 +9,8 @@ COPY --chown=gradle:gradle . .
 RUN cp src/main/resources/application.example.yaml src/main/resources/application.yaml
 RUN gradle installDist --no-daemon -x test
 
-FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S meadow && adduser -S meadow -G meadow
+FROM eclipse-temurin:21-jre
+RUN groupadd -r meadow && useradd -r -g meadow meadow
 WORKDIR /app
 COPY --from=build --chown=meadow:meadow /app/build/install/Meadow /app
 
