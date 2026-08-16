@@ -1,5 +1,10 @@
+# ⚠️ 配置模板：复制为 application.yaml 后填入真实密钥，或通过环境变量注入。
+# 生产环境必须通过环境变量注入全部密钥（MEADOW_JWT_SECRET / MEADOW_S3_* / MEADOW_REDIS_PASSWORD /
+# MEADOW_RESEND_API_KEY / MEADOW_ENCRYPTION_SECRET）。本文件仅作模板，不得填入真实密钥。
 ktor:
   development: true
+  deployment:
+    port: 23333
   application:
     modules:
       - moe.tabidachi.meadow.plugins.DIKt.configureDI
@@ -7,27 +12,25 @@ ktor:
       - moe.tabidachi.meadow.plugins.CORSKt.configureCORS
       - moe.tabidachi.meadow.plugins.MonitoringKt.configureMonitoring
       - moe.tabidachi.meadow.plugins.RateLimitKt.configureRateLimit
+      - moe.tabidachi.meadow.plugins.SocketsKt.configureSockets
       - moe.tabidachi.meadow.plugins.RoutingKt.configureRouting
       - moe.tabidachi.meadow.plugins.SerializationKt.configureSerialization
-      - moe.tabidachi.meadow.plugins.SocketsKt.configureSockets
       - moe.tabidachi.meadow.plugins.StatusPagesKt.configureStatusPages
-  deployment:
-    port: 8080
 
 jwt:
-  name: "jwt-auth"
-  domain: "https://example.com/"
-  audience: "example.com"
-  realm: "example"
-  secret: "114514"
-  issuer: "issuer"
+  name: "meadow-jwt"
+  domain: "https://tabidachi.moe"
+  audience: "tabidachi.moe"
+  realm: "Meadow"
+  secret: "${MEADOW_JWT_SECRET:CHANGE_ME}"
+  issuer: "https://tabidachi.moe"
 
 database:
   main:
-    url: "jdbc:postgresql://host.docker.internal:5440/meadow"
-    user: username
+    url: "${MEADOW_DB_URL:jdbc:postgresql://host.docker.internal:5440/meadow}"
+    user: "${MEADOW_DB_USER:username}"
     driver: org.postgresql.Driver
-    password: password
+    password: "${MEADOW_DB_PASSWORD:password}"
   test:
     url: "jdbc:h2:file:./.idea/h2/meadow"
     user: root
@@ -40,19 +43,27 @@ argon2:
   parallelism: 1
 
 s3:
-  host: ""
+  host: "${MEADOW_S3_HOST:storage.tabidachi.moe}"
   port: 9000
-  access_key: ""
-  secret_key: ""
+  access_key: "${MEADOW_S3_ACCESS_KEY:CHANGE_ME}"
+  secret_key: "${MEADOW_S3_SECRET_KEY:CHANGE_ME}"
 
 redis:
-  host: ""
+  host: "${MEADOW_REDIS_HOST:tabidachi.moe}"
   port: 6379
-  username: ""
-  password: ""
+  username:
+  password: "${MEADOW_REDIS_PASSWORD:CHANGE_ME}"
+
+# CORS 允许的来源白名单：生产限定域名，开发环境留空表示允许任意来源
+cors:
+  allowed_hosts:
+    - "https://meadow.tabidachi.moe"
+    - "http://localhost:5173"
+    - "http://localhost:4173"
 
 resend:
-  api_key: ""
+  api_key: "${MEADOW_RESEND_API_KEY:CHANGE_ME}"
 
 encryption:
-  secret_key: ""
+  # AES-128 密钥：必须为 32 位十六进制（16 字节）；生产用环境变量覆盖
+  secret_key: "${MEADOW_ENCRYPTION_SECRET:CHANGE_ME}"
