@@ -24,6 +24,9 @@ interface ScreenshotService {
     /** 下载截图（返回图片 URL，download_count+1） */
     suspend fun download(serverId: Long, screenshotId: Long): Response<String?>
 
+    /** 流式读取截图图片字节（同源代理，避免私有桶混合内容） */
+    suspend fun downloadImageStream(serverId: Long, screenshotId: Long): ByteArray?
+
     /** 举报截图（标记 reported + report_count+1） */
     suspend fun report(callerId: Long, serverId: Long, screenshotId: Long, reason: String): Response<String?>
 

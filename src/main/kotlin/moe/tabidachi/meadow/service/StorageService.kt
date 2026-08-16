@@ -7,6 +7,7 @@ import aws.sdk.kotlin.services.s3.model.HeadBucketRequest
 import aws.sdk.kotlin.services.s3.model.PutObjectRequest
 import aws.sdk.kotlin.services.s3.presigners.presignGetObject
 import aws.smithy.kotlin.runtime.content.ByteStream
+import aws.smithy.kotlin.runtime.content.toByteArray
 import io.ktor.http.*
 import moe.tabidachi.meadow.model.config.S3Config
 import kotlin.time.Duration
@@ -39,6 +40,12 @@ interface StorageService {
 
     /** 从存储 URL（bucket/key 路径式）生成预签名 URL */
     suspend fun presignObjectUrl(objectUrl: String, expiresIn: Duration = 15.minutes): String
+
+    /** 读取对象字节（后端代理下载/图片，避免私有桶直连与混合内容） */
+    suspend fun downloadObject(bucket: String, key: String): ByteArray
+
+    /** 从存储 URL 提取 bucket 与 key（形如 http://host:port/{bucket}/{key}） */
+    fun splitObjectUrl(objectUrl: String): Pair<String, String>?
 }
 
 class S3Service(
@@ -152,5 +159,25 @@ class S3Service(
         val bucketName = parts[0]
         val key = parts.drop(1).joinToString("/")
         return presignedUrl(bucketName, key, expiresIn)
+    }
+
+    override suspend fun downloadObject(bucket: String, key: String): ByteArray {
+        val bucketName = bucket
+        val objectKey = key
+        val request = GetObjectRequest {
+            this.bucket = bucketName
+            this.key = objectKey
+        }
+        // getObject 为泛型 transform API：在 transform 中消费 body 流
+        return s3Client.getObject(request) { response ->
+            response.body!!.toByteArray()
+        }
+    }
+
+    override fun splitObjectUrl(objectUrl: String): Pair<String, String>? {
+        val path = objectUrl.substringAfter("://").substringAfter("/")
+        val parts = path.split("/")
+        if (parts.size < 2) return null
+        return parts[0] to parts.drop(1).joinToString("/")
     }
 }

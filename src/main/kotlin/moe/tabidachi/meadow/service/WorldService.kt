@@ -20,6 +20,9 @@ interface WorldService {
     /** 下载存档（返回 URL，计数+1） */
     suspend fun download(serverId: Long, worldId: Long): Response<String?>
 
+    /** 流式下载存档（从 S3 读取字节，计数+1）；返回 null 表示存档不存在 */
+    suspend fun downloadStream(serverId: Long, worldId: Long): Pair<ByteArray, String>?
+
     /** 标记当前世界（owner / admin） */
     suspend fun setCurrent(callerId: Long, serverId: Long, worldId: Long): Response<Long?>
 

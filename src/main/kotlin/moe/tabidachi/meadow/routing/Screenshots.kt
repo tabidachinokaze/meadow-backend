@@ -11,6 +11,7 @@ import io.ktor.utils.io.*
 import moe.tabidachi.meadow.ktx.callingUserId
 import moe.tabidachi.meadow.ktx.getParameter
 import moe.tabidachi.meadow.model.CommonStatusCode
+import moe.tabidachi.meadow.model.ScreenshotStatusCode
 import moe.tabidachi.meadow.model.emptyData
 import moe.tabidachi.meadow.model.request.ReportScreenshotRequest
 import moe.tabidachi.meadow.service.ScreenshotService
@@ -82,6 +83,18 @@ fun Route.screenshots() {
                 val serverId = getParameter<Long>("id")
                 val screenshotId = getParameter<Long>("sid")
                 call.respond(screenshotService.download(serverId, screenshotId))
+            }
+
+            get("/image") {
+                val serverId = getParameter<Long>("id")
+                val screenshotId = getParameter<Long>("sid")
+                // 同源图片代理：从 S3 读取字节返回（私有桶，避免混合内容）
+                val bytes = screenshotService.downloadImageStream(serverId, screenshotId)
+                if (bytes != null) {
+                    call.respondBytes(bytes, ContentType.Image.PNG)
+                } else {
+                    call.respond(ScreenshotStatusCode.SCREENSHOT_NOT_FOUND.emptyData<String>())
+                }
             }
 
             post<ReportScreenshotRequest>("/report") { request ->

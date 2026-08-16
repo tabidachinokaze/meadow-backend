@@ -1,5 +1,6 @@
 package moe.tabidachi.meadow.routing
 
+import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.di.*
@@ -10,6 +11,7 @@ import io.ktor.utils.io.*
 import moe.tabidachi.meadow.ktx.callingUserId
 import moe.tabidachi.meadow.ktx.getParameter
 import moe.tabidachi.meadow.model.CommonStatusCode
+import moe.tabidachi.meadow.model.ModpackStatusCode
 import moe.tabidachi.meadow.model.emptyData
 import moe.tabidachi.meadow.service.ModpackService
 
@@ -28,7 +30,11 @@ fun Route.modpacks() {
 
         get("/modpack/download") {
             val serverId = getParameter<Long>("id")
-            call.respond(modpackService.download(serverId))
+            // 流式代理下载：从 S3 读取字节直接返回（同源 HTTPS）
+            modpackService.downloadStream(serverId)?.let { (bytes, name) ->
+                call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"$name\"")
+                call.respondBytes(bytes, ContentType.Application.Zip)
+            } ?: call.respond(ModpackStatusCode.MODPACK_NOT_FOUND.emptyData<String>())
         }
 
         post("/modpack") {

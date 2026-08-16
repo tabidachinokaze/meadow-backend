@@ -77,6 +77,13 @@ class ScreenshotServiceImpl(
         return CommonStatusCode.SUCCESS.withData(url)
     }
 
+    override suspend fun downloadImageStream(serverId: Long, screenshotId: Long): ByteArray? {
+        val shot = screenshotRepository.getById(serverId, screenshotId)
+            ?: return null
+        val (bucket, key) = storageService.splitObjectUrl(shot.imageUrl) ?: return null
+        return runCatching { storageService.downloadObject(bucket, key) }.getOrNull()
+    }
+
     override suspend fun report(
         callerId: Long,
         serverId: Long,

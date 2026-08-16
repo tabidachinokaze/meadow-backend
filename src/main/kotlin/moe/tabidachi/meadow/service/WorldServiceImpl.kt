@@ -73,6 +73,16 @@ class WorldServiceImpl(
         }
     }
 
+    override suspend fun downloadStream(serverId: Long, worldId: Long): Pair<ByteArray, String>? {
+        val world = worldRepository.getById(serverId, worldId)
+            ?: return null
+        worldRepository.incrementDownload(serverId, worldId)
+        val (bucket, key) = storageService.splitObjectUrl(world.downloadUrl ?: return null) ?: return null
+        val bytes = runCatching { storageService.downloadObject(bucket, key) }.getOrNull() ?: return null
+        val fileName = "${world.worldName}.zip".replace("\"", "")
+        return bytes to fileName
+    }
+
     override suspend fun setCurrent(callerId: Long, serverId: Long, worldId: Long): Response<Long?> {
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()

@@ -39,6 +39,16 @@ class ModpackServiceImpl(
         }
     }
 
+    override suspend fun downloadStream(serverId: Long): Pair<ByteArray, String>? {
+        val active = modpackRepository.getActive(serverId)
+            ?: return null
+        modpackRepository.incrementDownload(serverId, active.id)
+        val (bucket, key) = storageService.splitObjectUrl(active.downloadUrl) ?: return null
+        val bytes = runCatching { storageService.downloadObject(bucket, key) }.getOrNull() ?: return null
+        val fileName = "modpack-${active.version}.zip".replace("\"", "")
+        return bytes to fileName
+    }
+
     override suspend fun update(
         callerId: Long,
         serverId: Long,
