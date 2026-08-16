@@ -247,4 +247,25 @@ fun Route.user() {
             }
         }
     }
+
+    get("/users/me/summary") {
+        call.respond(userService.getSummary(callingUserId))
+    }.describe {
+        summary = "个人中心活跃数据统计"
+        responses {
+            HttpStatusCode.OK {
+                description = buildString {
+                    appendLine("code:")
+                    listOf(
+                        UserStatusCode.USER_NOT_FOUND,
+                        CommonStatusCode.SUCCESS
+                    ).forEach {
+                        appendLine("- ${it.code}: ${it.message}")
+                    }
+                    appendLine()
+                    appendLine("data: UserSummaryInfo（收藏/截图/发言/时长）")
+                }
+            }
+        }
+    }
 }

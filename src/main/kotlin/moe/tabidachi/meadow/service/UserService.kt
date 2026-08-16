@@ -2,6 +2,7 @@ package moe.tabidachi.meadow.service
 
 import moe.tabidachi.meadow.model.Response
 import moe.tabidachi.meadow.model.UserInfo
+import moe.tabidachi.meadow.model.UserSummaryInfo
 import moe.tabidachi.meadow.model.request.UpdatePasswordRequest
 import moe.tabidachi.meadow.model.request.UpdateUserInfoRequest
 
@@ -28,4 +29,7 @@ interface UserService {
 
     /** 注销账号（本人，软删除） */
     suspend fun deactivateAccount(callingUserId: Long, targetUserId: Long): Response<Long?>
+
+    /** 个人中心活跃数据统计（发言/时长按游戏 ID 关联） */
+    suspend fun getSummary(callingUserId: Long): Response<UserSummaryInfo?>
 }

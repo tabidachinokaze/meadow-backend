@@ -63,6 +63,10 @@ class ChatServiceImpl(
         if (!chatMessageRepository.recall(serverId, messageId)) {
             return CommonStatusCode.FAILURE.emptyData()
         }
+        // 撤回后广播已撤回状态（规划 §9.9：经 WebSocket 广播 message_recalled）
+        chatMessageRepository.getById(serverId, messageId)?.let { recalled ->
+            chatHub.broadcast(serverId, recalled.toInfo(null))
+        }
         return CommonStatusCode.SUCCESS.withData(messageId)
     }
 

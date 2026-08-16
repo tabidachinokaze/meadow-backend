@@ -864,7 +864,7 @@ sequenceDiagram
 `player_position` 表；头像按 `game_id` 关联用户头像。
 
 > 前端现状：`meadow-web` 的 `MapView` 已双模式对接——mock 服务器保持 canvas 自绘；真实服务器（数字 id）读取
-> `map/config` 中心与缩放、`map/players` 真实玩家位置渲染；`tile_url` 瓦片渲染待后续替换。
+> `map/config` 中心与缩放、`map/players` 真实玩家位置渲染；配置 `tile_url` 时叠加瓦片底图（canvas drawImage）渲染。
 
 ### 9.5 聊天模块 API [已实现]
 
@@ -929,7 +929,7 @@ sequenceDiagram
 | `GET /servers/{server_id}/bans`                          | 查询 | 管理员 | 生效中的禁言列表（代码已实现，文档补充）                                                            |
 | `POST /servers/{server_id}/bans`                         | 禁言 | 管理员 | `{ player_uuid, player_name, duration_hours(-1 永久), reason }`                                      |
 | `DELETE /servers/{server_id}/bans/{ban_id}`              | 解禁 | 管理员 |                                                                                                      |
-| `DELETE /servers/{server_id}/chat/messages/{message_id}` | 撤回 | 管理员 | 撤回后经 WebSocket 广播 `admin/message_recalled`                                                     |
+| `DELETE /servers/{server_id}/chat/messages/{message_id}` | 撤回 | 管理员 | 撤回后经 WebSocket 广播 `is_recalled=true` 的消息（已实现） |
 
 > 禁言语义待明确：是"聊天禁言"还是"封禁"，以及如何真正在游戏服生效（RCON 指令 / Mod 指令）；Web 端记录与游戏内执行需一致。
 
@@ -1049,6 +1049,7 @@ sequenceDiagram
 | User    | POST               | `/users/{uid}/password`   | JWT        | ✅                             |
 | User    | POST               | `/users/{uid}/email`      | JWT        | ✅（邮箱换绑：新邮箱+验证码）  |
 | User    | POST               | `/users/{uid}/deactivate` | JWT        | ✅（注销账号，软删除）         |
+| User    | GET                | `/users/me/summary`       | JWT        | ✅（个人中心统计：收藏/截图/发言/时长） |
 | User    | GET                | `/contacts`               | JWT        | ✅（已启用）                   |
 | Servers | GET                | `/servers`                | 公开      | ✅（匿名可读，脱敏；写操作需 JWT） |
 | Servers | POST               | `/servers`                | JWT        | ✅                             |

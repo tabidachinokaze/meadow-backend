@@ -6,6 +6,10 @@ import moe.tabidachi.meadow.model.request.UpdatePasswordRequest
 import moe.tabidachi.meadow.model.request.UpdateUserInfoRequest
 import moe.tabidachi.meadow.regex.RegexEmail
 import moe.tabidachi.meadow.regex.RegexUsernameStrict
+import moe.tabidachi.meadow.repository.ChatMessageRepository
+import moe.tabidachi.meadow.repository.FavoriteRepository
+import moe.tabidachi.meadow.repository.ScreenshotRepository
+import moe.tabidachi.meadow.repository.ServerPlayerRepository
 import moe.tabidachi.meadow.repository.UserRelationRepository
 import moe.tabidachi.meadow.repository.UserRepository
 import moe.tabidachi.meadow.security.CaptchaValidator
@@ -16,6 +20,10 @@ class UserServiceImpl(
     private val userRelationRepository: UserRelationRepository,
     private val encryptor: Encryptor,
     private val captchaValidator: CaptchaValidator,
+    private val chatMessageRepository: ChatMessageRepository,
+    private val favoriteRepository: FavoriteRepository,
+    private val screenshotRepository: ScreenshotRepository,
+    private val serverPlayerRepository: ServerPlayerRepository,
 ) : UserService {
     override suspend fun getUserInfo(callingUserId: Long?, targetUserId: Long): Response<UserInfo?> {
         val userInfo = userRepository.getUserInfo(targetUserId)
@@ -151,5 +159,24 @@ class UserServiceImpl(
             userRepository.deactivate(targetUserId) -> CommonStatusCode.SUCCESS.withData(targetUserId)
             else -> CommonStatusCode.FAILURE.emptyData()
         }
+    }
+
+    override suspend fun getSummary(callingUserId: Long): Response<UserSummaryInfo?> {
+        val user = userRepository.getByUid(callingUserId)
+            ?: return UserStatusCode.USER_NOT_FOUND.emptyData()
+        // 发言数/时长按游戏 ID 关联（未绑定 MC 账号时无关联数据）
+        val gameId = user.gameId
+        val messageCount = gameId?.let { chatMessageRepository.countBySender(it) } ?: 0
+        val totalOnlineSeconds = gameId?.let { uuid ->
+            serverPlayerRepository.getByUuid(uuid).sumOf { it.onlineDuration }
+        } ?: 0L
+        return CommonStatusCode.SUCCESS.withData(
+            UserSummaryInfo(
+                favoriteCount = favoriteRepository.getByUser(callingUserId).size.toLong(),
+                screenshotCount = screenshotRepository.getByUploader(callingUserId).size.toLong(),
+                messageCount = messageCount,
+                totalOnlineSeconds = totalOnlineSeconds,
+            )
+        )
     }
 }

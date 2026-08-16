@@ -222,7 +222,11 @@ fun Application.configureDI() {
                 userRepository = resolve(),
                 userRelationRepository = resolve(),
                 encryptor = resolve(Qualifier.ARGON2_ENCRYPTOR),
-                captchaValidator = resolve()
+                captchaValidator = resolve(),
+                chatMessageRepository = resolve(),
+                favoriteRepository = resolve(),
+                screenshotRepository = resolve(),
+                serverPlayerRepository = resolve()
             )
         }
         provide<ServerService> {

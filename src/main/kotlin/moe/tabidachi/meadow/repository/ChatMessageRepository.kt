@@ -25,6 +25,8 @@ interface ChatMessageRepository {
         type: String,
     ): ChatMessage
     suspend fun recall(serverId: Long, messageId: Long): Boolean
+    /** 统计某发送者（按游戏 ID）的发言条数（不含已撤回） */
+    suspend fun countBySender(senderUuid: String): Long
 }
 
 class ChatMessageRepositoryImpl(
@@ -77,5 +79,11 @@ class ChatMessageRepositoryImpl(
             it[isRecalled] = true
         }
         updateCount > 0
+    }
+
+    override suspend fun countBySender(senderUuid: String): Long = database.withTransaction {
+        ChatMessageEntity.find {
+            ChatMessageTable.senderUuid.eq(senderUuid).and(ChatMessageTable.isRecalled.eq(false))
+        }.count()
     }
 }
