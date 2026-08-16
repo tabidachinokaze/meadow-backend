@@ -29,7 +29,12 @@ class ChatServiceImpl(
         return CommonStatusCode.SUCCESS.withData(ChatHistoryResult(messages = list, hasMore = hasMore))
     }
 
-    override suspend fun sendMessage(callerId: Long, serverId: Long, content: String): Response<ChatMessageInfo?> {
+    override suspend fun sendMessage(
+        callerId: Long,
+        serverId: Long,
+        content: String,
+        type: String,
+    ): Response<ChatMessageInfo?> {
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
@@ -40,10 +45,10 @@ class ChatServiceImpl(
             senderName = user.username,
             senderUuid = user.gameId,
             content = content,
-            type = "chat",
+            type = type,
         )
         val info = message.toInfo(null)
-        // 实时广播给同服务器连接
+        // 实时广播给同服务器连接（含 Agent WS）
         chatHub.broadcast(serverId, info)
         return CommonStatusCode.SUCCESS.withData(info)
     }

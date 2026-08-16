@@ -32,7 +32,7 @@ fun Route.chat() {
 
         post<SendChatMessageRequest>("/chat/messages") { request ->
             val serverId = getParameter<Long>("id")
-            call.respond(chatService.sendMessage(callingUserId, serverId, request.content))
+            call.respond(chatService.sendMessage(callingUserId, serverId, request.content, request.type))
         }
 
         delete("/chat/messages/{mid}") {
@@ -60,6 +60,7 @@ fun Route.chatSocket() {
     val chatHub: ChatHub by application.dependencies
     val chatService: ChatService by application.dependencies
     val jwt: Jwt by application.dependencies
+    val serverRepository: moe.tabidachi.meadow.repository.ServerRepository by application.dependencies
     val json = Json { ignoreUnknownKeys = true }
 
     webSocket("/ws/chat") {
@@ -96,6 +97,36 @@ fun Route.chatSocket() {
             }
         } finally {
             chatHub.disconnect(serverId, uid, this)
+        }
+    }
+
+    // Agent 专用 WS：server_key + machine_id 认证，接收该服务器全部消息广播（规划 §9.12）
+    webSocket("/ws/agent") {
+        val serverId = call.request.queryParameters["server_id"]?.toLongOrNull()
+        if (serverId == null) {
+            close(CloseReason(CloseReason.Codes.CANNOT_ACCEPT, "missing server_id"))
+            return@webSocket
+        }
+        val serverKey = call.request.queryParameters["server_key"]
+        val machineId = call.request.queryParameters["machine_id"]
+        val server = serverRepository.getById(serverId)
+        if (server == null || server.serverKey != serverKey || server.machineId != machineId) {
+            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "unauthorized"))
+            return@webSocket
+        }
+        // Agent 用固定虚拟 uid（负数）接入同一 ChatHub，接收广播
+        chatHub.connect(serverId, -serverId, this)
+        try {
+            for (frame in incoming) {
+                if (frame !is Frame.Text) continue
+                val text = frame.readText()
+                val msg = runCatching { json.decodeFromString<WsClientMessage>(text) }.getOrNull() ?: continue
+                when (msg.type) {
+                    "ping" -> send(Frame.Text("""{"type":"pong"}"""))
+                }
+            }
+        } finally {
+            chatHub.disconnect(serverId, -serverId, this)
         }
     }
 }

@@ -854,8 +854,9 @@ sequenceDiagram
 
 #### 9.4.1 获取地图瓦片配置 — `GET /servers/{server_id}/map/config`
 
-返回 `{ type: "dynmap", tile_url, world_name, center: {x,z}, zoom: {min,max,default}, player_markers_url }`。
+返回 `{ type: "dynmap", tile_url, world_name, center: {x,z}, zoom: {min,max,default}, player_markers_url, web_map_url, seed }`。
 未配置时返回 `41101`。保存配置：`PUT /servers/{server_id}/map/config`（服务器 owner/admin，请求体同构）。
+`web_map_url` 为实时 Web 地图地址（BlueMap/Dynmap/Pl3xMap 等，前端 iframe 嵌入）；`seed` 为世界种子（种子预览用，Chunkbase）。
 
 #### 9.4.2 获取地图实时玩家位置 — `GET /servers/{server_id}/map/players`
 
@@ -965,6 +966,7 @@ sequenceDiagram
 |:---------------------------|:-----|:-------------|:------------------------------------------------------------------------------------|
 | `/servers/{id}/sync/status`| POST | Agent → 后端 | **已实现**：每 10s 推送在线玩家（含坐标/世界）、Mod 列表、TPS、运行时长（`meadow-mod` AgentReporter） |
 | `/servers/{id}/sync/chat`  | POST | Agent → 后端 | **已实现**：Agent 上报聊天消息（`meadow-mod` ChatReporter，监听 `ServerMessageEvents.CHAT_MESSAGE`） |
+| `/ws/agent`                | WS   | Agent ← 后端 | **已实现**：Agent 专用 WS（server_key + machine_id 认证），接收服务器消息/公告广播并在游戏内显示（`meadow-mod` AgentWsClient） |
 | WebSocket 长连接           | -    | Agent → 后端 | 实时聊天/玩家进出/成就事件（规划，可基于 `/ws/chat` 或 Agent 专用 WS 扩展）          |
 | `/internal/players`        | GET  | 后端 → Agent | 获取在线玩家列表（规划，后端已有 `/servers/{id}/players`）                           |
 | `/internal/mods`           | GET  | 后端 → Agent | 获取 Mod 列表（规划，后端已有 `/servers/{id}/mods`）                                 |

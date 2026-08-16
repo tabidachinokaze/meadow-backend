@@ -30,6 +30,8 @@ interface MapConfigRepository {
         zoomMax: Int,
         zoomDefault: Int,
         playerMarkersUrl: String?,
+        webMapUrl: String?,
+        seed: Long?,
     ): MapConfig
 }
 
@@ -53,6 +55,8 @@ class MapConfigRepositoryImpl(
         zoomMax: Int,
         zoomDefault: Int,
         playerMarkersUrl: String?,
+        webMapUrl: String?,
+        seed: Long?,
     ): MapConfig = database.withTransaction {
         val existing = MapConfigEntity.find { MapConfigTable.serverId.eq(serverId) }.singleOrNull()
         if (existing != null) {
@@ -66,6 +70,8 @@ class MapConfigRepositoryImpl(
                 it[MapConfigTable.zoomMax] = zoomMax
                 it[MapConfigTable.zoomDefault] = zoomDefault
                 it[MapConfigTable.playerMarkersUrl] = playerMarkersUrl
+                it[MapConfigTable.webMapUrl] = webMapUrl
+                it[MapConfigTable.seed] = seed
                 it[MapConfigTable.updatedAt] = Clock.System.now()
             }
             MapConfigMapper.toMapConfig(
@@ -83,6 +89,8 @@ class MapConfigRepositoryImpl(
                 this.zoomMax = zoomMax
                 this.zoomDefault = zoomDefault
                 this.playerMarkersUrl = playerMarkersUrl
+                this.webMapUrl = webMapUrl
+                this.seed = seed
                 this.updatedAt = Clock.System.now()
             }
             MapConfigMapper.toMapConfig(entity)

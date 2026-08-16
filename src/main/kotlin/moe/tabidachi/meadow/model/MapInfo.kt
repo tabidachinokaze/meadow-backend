@@ -12,6 +12,10 @@ data class MapConfigInfo(
     val center: MapCenter,
     val zoom: MapZoom,
     val playerMarkersUrl: String?,
+    /** 实时 Web 地图地址（BlueMap/Dynmap 等，前端 iframe 嵌入） */
+    val webMapUrl: String?,
+    /** 世界种子（种子预览用） */
+    val seed: Long?,
     val updatedAt: Instant?,
 )
 

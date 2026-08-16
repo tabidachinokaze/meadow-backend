@@ -18,6 +18,8 @@ object MapConfigMapper {
         zoomMax = entity.zoomMax,
         zoomDefault = entity.zoomDefault,
         playerMarkersUrl = entity.playerMarkersUrl,
+        webMapUrl = entity.webMapUrl,
+        seed = entity.seed,
         updatedAt = entity.updatedAt,
     )
 }

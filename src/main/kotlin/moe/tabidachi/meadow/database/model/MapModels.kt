@@ -15,6 +15,8 @@ data class MapConfig(
     val zoomMax: Int,
     val zoomDefault: Int,
     val playerMarkersUrl: String?,
+    val webMapUrl: String?,
+    val seed: Long?,
     val updatedAt: Instant,
 )
 

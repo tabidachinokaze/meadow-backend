@@ -18,6 +18,10 @@ data class MapConfigRequest(
     val zoom: MapZoomRequest? = null,
     @SerialName("player_markers_url")
     val playerMarkersUrl: String? = null,
+    @SerialName("web_map_url")
+    val webMapUrl: String? = null,
+    @SerialName("seed")
+    val seed: Long? = null,
 ) {
     @Serializable
     data class MapCenterRequest(

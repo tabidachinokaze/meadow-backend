@@ -20,6 +20,10 @@ object MapConfigTable : LongIdTable("map_config") {
     val zoomMax = integer("zoom_max").default(3)
     val zoomDefault = integer("zoom_default").default(1)
     val playerMarkersUrl = text("player_markers_url").nullable()
+    /** 实时 Web 地图地址（BlueMap/Dynmap/Pl3xMap 等，前端 iframe 嵌入） */
+    val webMapUrl = text("web_map_url").nullable()
+    /** 世界种子（种子预览用，Chunkbase 等） */
+    val seed = long("seed").nullable()
     val updatedAt = timestamp("updated_at")
 }
 

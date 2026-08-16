@@ -50,6 +50,8 @@ class MapServiceImpl(
             zoomMax = request.zoom?.max ?: 3,
             zoomDefault = request.zoom?.default ?: 1,
             playerMarkersUrl = request.playerMarkersUrl,
+            webMapUrl = request.webMapUrl,
+            seed = request.seed,
         )
         return CommonStatusCode.SUCCESS.withData(saved.toInfo())
     }
@@ -94,6 +96,8 @@ class MapServiceImpl(
             center = MapCenter(x = centerX, z = centerZ),
             zoom = MapZoom(min = zoomMin, max = zoomMax, default = zoomDefault),
             playerMarkersUrl = playerMarkersUrl,
+            webMapUrl = webMapUrl,
+            seed = seed,
             updatedAt = updatedAt,
         )
 }

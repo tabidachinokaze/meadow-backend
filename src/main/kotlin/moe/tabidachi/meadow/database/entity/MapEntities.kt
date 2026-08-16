@@ -19,6 +19,8 @@ class MapConfigEntity(id: EntityID<Long>) : LongEntity(id) {
     var zoomMax by MapConfigTable.zoomMax
     var zoomDefault by MapConfigTable.zoomDefault
     var playerMarkersUrl by MapConfigTable.playerMarkersUrl
+    var webMapUrl by MapConfigTable.webMapUrl
+    var seed by MapConfigTable.seed
     var updatedAt by MapConfigTable.updatedAt
 }
 
