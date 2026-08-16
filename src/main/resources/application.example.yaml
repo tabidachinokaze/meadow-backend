@@ -45,7 +45,9 @@ argon2:
 
 s3:
   host: "${MEADOW_S3_HOST:storage.tabidachi.moe}"
-  port: 9000
+  port: ${MEADOW_S3_PORT:-443}
+  # https（默认，443 反代）或 http（自建 S3 直连，如 rustfs:9000）
+  scheme: "${MEADOW_S3_SCHEME:-https}"
   access_key: "${MEADOW_S3_ACCESS_KEY:CHANGE_ME}"
   secret_key: "${MEADOW_S3_SECRET_KEY:CHANGE_ME}"
 

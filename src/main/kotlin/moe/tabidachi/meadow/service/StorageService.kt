@@ -131,10 +131,10 @@ class S3Service(
 
     private fun buildUrl(bucketName: String, objectKey: String): String {
         return URLBuilder().apply {
-            // 与 SharedS3Client endpoint 一致：HTTPS + 443 反代（预签名/存储 URL 均走 HTTPS）
-            protocol = URLProtocol.HTTPS
+            // 与 SharedS3Client endpoint 一致：协议/端口由配置决定（生产 443 反代 https，自建 http）
+            protocol = if (s3Config.scheme.equals("http", ignoreCase = true)) URLProtocol.HTTP else URLProtocol.HTTPS
             host = s3Config.host
-            port = 443
+            port = s3Config.port
             path(bucketName, objectKey)
         }.buildString()
     }

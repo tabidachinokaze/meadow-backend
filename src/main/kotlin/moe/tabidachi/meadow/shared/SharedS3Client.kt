@@ -14,10 +14,10 @@ fun SharedS3Client(s3Config: S3Config): S3Client {
     return S3Client {
         this.region = "us-east-1"
         this.endpointUrl = Url {
-            this.scheme = Scheme.HTTPS
+            // 协议/端口由配置决定：生产 443 反代（https），自建 S3 直连（如 rustfs:9000，http）
+            this.scheme = if (s3Config.scheme.equals("http", ignoreCase = true)) Scheme.HTTP else Scheme.HTTPS
             this.host = Host.Domain(s3Config.host)
-            // 443 反代到 S3（forcePathStyle 下 URL 含 bucket 路径；预签名 URL 走 HTTPS 避免混合内容）
-            this.port = 443
+            this.port = s3Config.port
         }
         // 自建 S3 兼容服务（RustFS/MinIO）使用 path-style 寻址
         this.forcePathStyle = true
