@@ -27,6 +27,7 @@ import moe.tabidachi.meadow.model.config.*
 import moe.tabidachi.meadow.repository.*
 import moe.tabidachi.meadow.security.*
 import moe.tabidachi.meadow.service.*
+import moe.tabidachi.meadow.shared.SharedPresignS3Client
 import moe.tabidachi.meadow.shared.SharedS3Client
 import moe.tabidachi.meadow.system.Postman
 import moe.tabidachi.meadow.system.PostmanResendImpl
@@ -76,7 +77,9 @@ fun Application.configureDI() {
         provide<StorageService> {
             S3Service(
                 s3Config = s3Config,
-                s3Client = resolve()
+                s3Client = resolve(),
+                // 预签名用公开地址 endpoint（签名 Host 与浏览器一致，防 SignatureDoesNotMatch）
+                presignClient = SharedPresignS3Client(s3Config)
             )
         }
         provide<KedisClient> {
