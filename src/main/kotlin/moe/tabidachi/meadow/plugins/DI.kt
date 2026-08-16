@@ -117,6 +117,10 @@ fun Application.configureDI() {
         }
     }
     val (url, user, driver, password) = property<DatabaseConfig>("database.$mode")
+    // PostgreSQL 部署时若目标库不存在则自动创建（H2 文件库自动生成，跳过）
+    if (mode == "main") {
+        ensureDatabaseExists(url, user, password)
+    }
     dependencies {
         provide<Database> {
             Database.connect(url, driver, user, password).also { db ->
@@ -341,6 +345,45 @@ fun Application.configureDI() {
                 userRepository = resolve(),
                 permissionGuard = resolve()
             )
+        }
+    }
+}
+
+/**
+ * PostgreSQL 部署时自动创建目标数据库（若不存在）。
+ *
+ * 背景：`CREATE DATABASE` 不能运行在事务内，且连不上不存在的库；
+ * 因此先尝试直连目标库，失败且报"库不存在"时，改连同实例的 `postgres` 库执行建库。
+ * 需注意：连接用户必须具有 CREATEDB 权限；并发启动时捕获 42P04 重复库错误忽略。
+ * H2 文件库自动生成，不走此逻辑。
+ */
+private fun ensureDatabaseExists(url: String, user: String, password: String) {
+    // 1. 直连目标库：成功则无需建库
+    try {
+        java.sql.DriverManager.getConnection(url, user, password).use { }
+        return
+    } catch (e: java.sql.SQLException) {
+        // 仅当报"数据库不存在"时才继续建库；其余错误（认证/网络等）直接抛出便于定位
+        if (!e.message.orEmpty().contains("does not exist", ignoreCase = true)) {
+            throw e
+        }
+    }
+    // 2. 连同实例的 postgres 库执行 CREATE DATABASE
+    val dbName = url.substringAfterLast('/').substringBefore('?')
+    val query = if (url.contains('?')) "?" + url.substringAfter('?') else ""
+    val adminUrl = if (dbName.isNotBlank()) {
+        url.substringBeforeLast('/') + "/postgres" + query
+    } else {
+        url
+    }
+    java.sql.DriverManager.getConnection(adminUrl, user, password).use { conn ->
+        conn.createStatement().use { stmt ->
+            try {
+                stmt.execute("CREATE DATABASE \"$dbName\"")
+            } catch (e: java.sql.SQLException) {
+                // 42P04 = duplicate_database（并发启动时另一实例已创建）
+                if (e.sqlState != "42P04") throw e
+            }
         }
     }
 }
