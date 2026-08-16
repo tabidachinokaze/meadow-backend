@@ -1,7 +1,7 @@
 package moe.tabidachi.meadow.service
 
 import moe.tabidachi.meadow.database.model.ServerRole
-import moe.tabidachi.meadow.database.model.SystemRole
+import moe.tabidachi.meadow.ktx.withTransaction
 import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.repository.ReportRepository
 import moe.tabidachi.meadow.repository.ScreenshotRepository
@@ -17,6 +17,7 @@ class ScreenshotServiceImpl(
     private val userRepository: UserRepository,
     private val storageService: StorageService,
     private val reportRepository: ReportRepository,
+    private val database: org.jetbrains.exposed.v1.jdbc.Database,
 ) : ScreenshotService {
 
     override suspend fun getScreenshots(
@@ -95,9 +96,12 @@ class ScreenshotServiceImpl(
         }
         val shot = screenshotRepository.getById(serverId, screenshotId)
             ?: return ScreenshotStatusCode.SCREENSHOT_NOT_FOUND.emptyData()
-        screenshotRepository.markReported(serverId, screenshotId)
-        // 写入举报记录（管理员审核用）
-        reportRepository.add(screenshotId, callerId, reason)
+        // 服务级事务：标记举报 + 写入举报记录原子完成
+        database.withTransaction {
+            screenshotRepository.markReported(serverId, screenshotId)
+            // 写入举报记录（管理员审核用）
+            reportRepository.add(screenshotId, callerId, reason)
+        }
         return CommonStatusCode.SUCCESS.emptyData<String>(message = "举报已提交，我们会尽快处理")
     }
 

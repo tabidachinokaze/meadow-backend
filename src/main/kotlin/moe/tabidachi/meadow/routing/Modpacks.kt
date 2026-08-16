@@ -9,7 +9,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import moe.tabidachi.meadow.ktx.callingUserId
+import moe.tabidachi.meadow.ktx.readBytesWithLimit
 import moe.tabidachi.meadow.ktx.getParameter
+import moe.tabidachi.meadow.ktx.readBytesWithLimit
 import moe.tabidachi.meadow.model.CommonStatusCode
 import moe.tabidachi.meadow.model.ModpackStatusCode
 import moe.tabidachi.meadow.model.emptyData
@@ -46,8 +48,8 @@ fun Route.modpacks() {
             multipart.forEachPart { part ->
                 when (part) {
                     is PartData.FileItem -> {
-                        val bytes = part.provider().toByteArray()
-                        if (bytes.isNotEmpty()) {
+                        val bytes = part.readBytesWithLimit(2L * 1024 * 1024 * 1024)
+                        if (bytes != null && bytes.isNotEmpty()) {
                             fileBytes = bytes
                             contentType = part.contentType?.toString() ?: "application/zip"
                         }
@@ -68,8 +70,10 @@ fun Route.modpacks() {
             }
 
             if (fileBytes != null && !version.isNullOrBlank() && !releaseDate.isNullOrBlank()) {
+                val ver = version!!
+                val relDate = releaseDate!!
                 call.respond(
-                    modpackService.update(callingUserId, serverId, fileBytes, contentType, version!!, releaseDate!!, changelog)
+                    modpackService.update(callingUserId, serverId, fileBytes!!, contentType, ver, relDate, changelog)
                 )
             } else {
                 call.respond(CommonStatusCode.FAILURE.emptyData<String>())

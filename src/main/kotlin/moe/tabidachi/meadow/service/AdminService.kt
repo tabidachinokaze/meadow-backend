@@ -7,8 +7,8 @@ import moe.tabidachi.meadow.model.request.BanPlayerRequest
 import moe.tabidachi.meadow.model.request.HandleReportRequest
 
 interface AdminService {
-    /** 举报列表（按状态筛选，默认 pending） */
-    suspend fun getReports(status: String?): Response<List<ReportInfo>?>
+    /** 举报列表（按状态筛选，默认 pending；仅拥有截图管理权限的成员可见其服务器举报） */
+    suspend fun getReports(handlerId: Long, status: String?): Response<List<ReportInfo>?>
 
     /** 审核举报（approve → 截图下架；reject → 驳回） */
     suspend fun handleReport(

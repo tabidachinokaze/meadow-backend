@@ -9,7 +9,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import moe.tabidachi.meadow.ktx.callingUserId
+import moe.tabidachi.meadow.ktx.readBytesWithLimit
 import moe.tabidachi.meadow.ktx.getParameter
+import moe.tabidachi.meadow.ktx.readBytesWithLimit
 import moe.tabidachi.meadow.model.CommonStatusCode
 import moe.tabidachi.meadow.model.ScreenshotStatusCode
 import moe.tabidachi.meadow.model.emptyData
@@ -42,8 +44,8 @@ fun Route.screenshots() {
             multipart.forEachPart { part ->
                 when (part) {
                     is PartData.FileItem -> {
-                        val bytes = part.provider().toByteArray()
-                        if (bytes.isNotEmpty() && bytes.size <= 10 * 1024 * 1024) {
+                        val bytes = part.readBytesWithLimit(10 * 1024 * 1024)
+                        if (bytes != null && bytes.isNotEmpty() && bytes.size <= 10 * 1024 * 1024) {
                             fileBytes = bytes
                             contentType = part.contentType?.toString() ?: ContentType.Image.PNG.toString()
                         }
@@ -67,7 +69,7 @@ fun Route.screenshots() {
                     screenshotService.upload(
                         callerId = callingUserId,
                         serverId = serverId,
-                        bytes = fileBytes,
+                        bytes = fileBytes!!,
                         contentType = contentType,
                         description = description,
                         coordinates = coordinates,

@@ -9,7 +9,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.*
 import moe.tabidachi.meadow.ktx.callingUserId
+import moe.tabidachi.meadow.ktx.readBytesWithLimit
 import moe.tabidachi.meadow.ktx.getParameter
+import moe.tabidachi.meadow.ktx.readBytesWithLimit
 import moe.tabidachi.meadow.model.CommonStatusCode
 import moe.tabidachi.meadow.model.WorldStatusCode
 import moe.tabidachi.meadow.model.emptyData
@@ -39,8 +41,8 @@ fun Route.worlds() {
             multipart.forEachPart { part ->
                 when (part) {
                     is PartData.FileItem -> {
-                        val bytes = part.provider().toByteArray()
-                        if (bytes.isNotEmpty()) {
+                        val bytes = part.readBytesWithLimit(2L * 1024 * 1024 * 1024)
+                        if (bytes != null && bytes.isNotEmpty()) {
                             fileBytes = bytes
                             contentType = part.contentType?.toString() ?: "application/zip"
                         }
@@ -60,8 +62,9 @@ fun Route.worlds() {
             }
 
             if (fileBytes != null && !worldName.isNullOrBlank()) {
+                val name = worldName!!
                 call.respond(
-                    worldService.upload(callingUserId, serverId, fileBytes, contentType, worldName!!, worldType)
+                    worldService.upload(callingUserId, serverId, fileBytes!!, contentType, name, worldType)
                 )
             } else {
                 call.respond(CommonStatusCode.FAILURE.emptyData<String>())

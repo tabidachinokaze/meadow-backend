@@ -1,21 +1,18 @@
 package moe.tabidachi.meadow.service
 
-import moe.tabidachi.meadow.database.model.ServerRole
-import moe.tabidachi.meadow.database.model.SystemRole
+import moe.tabidachi.meadow.ktx.withTransaction
 import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.repository.ModpackRepository
-import moe.tabidachi.meadow.repository.ServerMemberRepository
 import moe.tabidachi.meadow.repository.ServerRepository
-import moe.tabidachi.meadow.repository.UserRepository
 import java.security.MessageDigest
 import kotlin.uuid.Uuid
 
 class ModpackServiceImpl(
     private val modpackRepository: ModpackRepository,
     private val serverRepository: ServerRepository,
-    private val serverMemberRepository: ServerMemberRepository,
-    private val userRepository: UserRepository,
     private val storageService: StorageService,
+    private val permissionGuard: PermissionGuard,
+    private val database: org.jetbrains.exposed.v1.jdbc.Database,
 ) : ModpackService {
 
     override suspend fun getModpack(serverId: Long): Response<ModpackInfo?> {
@@ -61,7 +58,7 @@ class ModpackServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrAdmin(callerId, serverId)) {
+        if (!permissionGuard.requirePermission(serverId, callerId, PermissionBit.CAN_MANAGE_MODPACK)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (version.isBlank()) {
@@ -78,27 +75,25 @@ class ModpackServiceImpl(
         }
         val md5 = MessageDigest.getInstance("MD5").digest(bytes)
             .joinToString("") { "%02x".format(it) }
-        val modpack = modpackRepository.add(
-            serverId = serverId,
-            version = version,
-            releaseDate = releaseDate,
-            downloadUrl = url,
-            fileSize = bytes.size.toLong(),
-            md5Hash = md5,
-            changelog = changelog,
-        )
-        // 新版本激活，旧版本失效
-        modpackRepository.deactivateOthers(serverId, modpack.id)
+        // 服务级事务：新版本写入 + 旧版本失效原子完成（避免出现多条 is_active=true）
+        val modpack = database.withTransaction {
+            val created = modpackRepository.add(
+                serverId = serverId,
+                version = version,
+                releaseDate = releaseDate,
+                downloadUrl = url,
+                fileSize = bytes.size.toLong(),
+                md5Hash = md5,
+                changelog = changelog,
+            )
+            // 新版本激活，旧版本失效
+            modpackRepository.deactivateOthers(serverId, created.id)
+            created
+        }
         return CommonStatusCode.SUCCESS.withData(modpack.toInfo())
     }
 
     // ── 辅助 ──
-
-    private suspend fun isOwnerOrAdmin(callerId: Long, serverId: Long): Boolean {
-        if (userRepository.getByUid(callerId)?.role == SystemRole.ADMIN) return true
-        val role = serverMemberRepository.getByServerAndUser(serverId, callerId)?.role
-        return role == ServerRole.OWNER || role == ServerRole.ADMIN
-    }
 
     private suspend fun moe.tabidachi.meadow.database.model.ServerModpack.toInfo(
         withPresignedUrl: Boolean = false,

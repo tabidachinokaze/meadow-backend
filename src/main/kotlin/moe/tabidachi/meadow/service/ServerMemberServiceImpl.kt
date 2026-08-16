@@ -6,6 +6,7 @@ import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.model.request.AddMemberRequest
 import moe.tabidachi.meadow.model.request.TransferOwnershipRequest
 import moe.tabidachi.meadow.model.request.UpdateMemberRequest
+import moe.tabidachi.meadow.ktx.withTransaction
 import moe.tabidachi.meadow.repository.ServerMemberRepository
 import moe.tabidachi.meadow.repository.ServerRepository
 import moe.tabidachi.meadow.repository.UserRepository
@@ -15,6 +16,7 @@ class ServerMemberServiceImpl(
     private val serverMemberRepository: ServerMemberRepository,
     private val serverRepository: ServerRepository,
     private val userRepository: UserRepository,
+    private val database: org.jetbrains.exposed.v1.jdbc.Database,
 ) : ServerMemberService {
 
     override suspend fun getMembers(serverId: Long): Response<List<ServerMemberInfo>?> {
@@ -182,24 +184,31 @@ class ServerMemberServiceImpl(
         }
         val oldOwnerRole = serverMemberRepository.getByServerAndUser(serverId, server.ownerId)?.role
             ?: ServerRole.OWNER
-        // 新所有者若还不是成员则自动添加为 member，再升级为 owner
-        if (serverMemberRepository.getByServerAndUser(serverId, request.newOwnerId) == null) {
-            serverMemberRepository.add(serverId, request.newOwnerId, ServerRole.MEMBER, MemberPermissions.MEMBER_DEFAULT)
+        // 服务级事务：加成员→降旧主→改权限→升新主→改 owner_id 原子完成（中途失败整体回滚）
+        val ok = database.withTransaction {
+            // 新所有者若还不是成员则自动添加为 member，再升级为 owner
+            if (serverMemberRepository.getByServerAndUser(serverId, request.newOwnerId) == null) {
+                serverMemberRepository.add(serverId, request.newOwnerId, ServerRole.MEMBER, MemberPermissions.MEMBER_DEFAULT)
+            }
+            // 旧 owner 降级：keep_as_admin 时给 ADMIN 默认权限
+            if (!serverMemberRepository.updateRole(
+                    serverId, server.ownerId,
+                    if (request.keepAsAdmin) ServerRole.ADMIN else ServerRole.MEMBER
+                )) {
+                return@withTransaction false
+            }
+            if (request.keepAsAdmin) {
+                serverMemberRepository.updatePermissions(serverId, server.ownerId, MemberPermissions.ADMIN_DEFAULT)
+            }
+            if (!serverMemberRepository.updateRole(serverId, request.newOwnerId, ServerRole.OWNER)) {
+                return@withTransaction false
+            }
+            if (!serverRepository.update(serverId = serverId, ownerId = request.newOwnerId)) {
+                return@withTransaction false
+            }
+            true
         }
-        // 旧 owner 降级：keep_as_admin 时给 ADMIN 默认权限
-        if (!serverMemberRepository.updateRole(
-                serverId, server.ownerId,
-                if (request.keepAsAdmin) ServerRole.ADMIN else ServerRole.MEMBER
-            )) {
-            return CommonStatusCode.FAILURE.emptyData()
-        }
-        if (request.keepAsAdmin) {
-            serverMemberRepository.updatePermissions(serverId, server.ownerId, MemberPermissions.ADMIN_DEFAULT)
-        }
-        if (!serverMemberRepository.updateRole(serverId, request.newOwnerId, ServerRole.OWNER)) {
-            return CommonStatusCode.FAILURE.emptyData()
-        }
-        if (!serverRepository.update(serverId = serverId, ownerId = request.newOwnerId)) {
+        if (!ok) {
             return CommonStatusCode.FAILURE.emptyData()
         }
         return CommonStatusCode.SUCCESS.withData(

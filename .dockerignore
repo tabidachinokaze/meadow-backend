@@ -1,0 +1,8 @@
+.git
+.gitignore
+.idea
+build
+.gradle
+*.iml
+**/.idea/h2
+**/*.log

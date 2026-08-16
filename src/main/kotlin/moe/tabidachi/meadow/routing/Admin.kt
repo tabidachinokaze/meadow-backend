@@ -18,7 +18,7 @@ fun Route.admin() {
 
     get("/admin/reports") {
         val status = call.request.queryParameters["status"]
-        call.respond(adminService.getReports(status))
+        call.respond(adminService.getReports(callingUserId, status))
     }
 
     patch<HandleReportRequest>("/admin/reports/{id}") { request ->

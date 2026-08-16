@@ -2,7 +2,8 @@
 # 生产环境必须通过环境变量注入全部密钥（MEADOW_JWT_SECRET / MEADOW_S3_* / MEADOW_REDIS_PASSWORD /
 # MEADOW_RESEND_API_KEY / MEADOW_ENCRYPTION_SECRET）。本文件仅作模板，不得填入真实密钥。
 ktor:
-  development: true
+  # 开发环境默认 true（连 H2 测试库 + 测试邮件）；生产部署需显式设置 MEADOW_DEVELOPMENT=false
+  development: "${MEADOW_DEVELOPMENT:true}"
   deployment:
     port: 23333
   application:

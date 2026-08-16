@@ -1,7 +1,6 @@
 package moe.tabidachi.meadow.service
 
-import moe.tabidachi.meadow.database.model.ServerRole
-import moe.tabidachi.meadow.database.model.SystemRole
+import moe.tabidachi.meadow.ktx.withTransaction
 import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.model.request.BanPlayerRequest
 import moe.tabidachi.meadow.model.request.HandleReportRequest
@@ -16,27 +15,42 @@ class AdminServiceImpl(
     private val serverRepository: ServerRepository,
     private val serverMemberRepository: ServerMemberRepository,
     private val userRepository: UserRepository,
+    private val permissionGuard: PermissionGuard,
+    private val database: org.jetbrains.exposed.v1.jdbc.Database,
 ) : AdminService {
 
-    override suspend fun getReports(status: String?): Response<List<ReportInfo>?> {
-        val list = reportRepository.getByStatus(status).map { report ->
-            val screenshot = screenshotRepository.getByScreenshotId(report.screenshotId)
-            ReportInfo(
-                id = report.id,
-                screenshotId = report.screenshotId,
-                screenshotUrl = screenshot?.imageUrl,
-                serverId = screenshot?.serverId,
-                serverName = screenshot?.serverId?.let { serverRepository.getServerInfo(it)?.name },
-                reporterId = report.reporterId,
-                reporterName = userRepository.getUserInfo(report.reporterId)?.username,
-                reason = report.reason,
-                status = report.status,
-                handlerId = report.handlerId,
-                handlerNote = report.handlerNote,
-                createdAt = report.createdAt,
-                handledAt = report.handledAt,
-            )
+    override suspend fun getReports(handlerId: Long, status: String?): Response<List<ReportInfo>?> {
+        // 鉴权：仅拥有截图管理权限的成员可查看举报（防止任意登录用户拉全站举报，审计 C3）
+        val visibleServerIds = serverMemberRepository.getByUser(handlerId)
+            .filter { it.role == moe.tabidachi.meadow.database.model.ServerRole.OWNER || it.permissions.canManageScreenshots }
+            .map { it.serverId }
+            .toSet()
+        if (visibleServerIds.isEmpty()) {
+            return CommonStatusCode.FORBIDDEN.emptyData()
         }
+        val list = reportRepository.getByStatus(status)
+            .filter { report ->
+                val serverId = screenshotRepository.getByScreenshotId(report.screenshotId)?.serverId
+                serverId != null && serverId in visibleServerIds
+            }
+            .map { report ->
+                val screenshot = screenshotRepository.getByScreenshotId(report.screenshotId)
+                ReportInfo(
+                    id = report.id,
+                    screenshotId = report.screenshotId,
+                    screenshotUrl = screenshot?.imageUrl,
+                    serverId = screenshot?.serverId,
+                    serverName = screenshot?.serverId?.let { serverRepository.getServerInfo(it)?.name },
+                    reporterId = report.reporterId,
+                    reporterName = userRepository.getUserInfo(report.reporterId)?.username,
+                    reason = report.reason,
+                    status = report.status,
+                    handlerId = report.handlerId,
+                    handlerNote = report.handlerNote,
+                    createdAt = report.createdAt,
+                    handledAt = report.handledAt,
+                )
+            }
         return CommonStatusCode.SUCCESS.withData(list)
     }
 
@@ -52,23 +66,31 @@ class AdminServiceImpl(
         }
         val screenshot = screenshotRepository.getByScreenshotId(report.screenshotId)
         val serverId = screenshot?.serverId
-        if (serverId != null && !isOwnerOrAdmin(handlerId, serverId)) {
+        if (serverId != null && !permissionGuard.requirePermission(serverId, handlerId, PermissionBit.CAN_MANAGE_SCREENSHOTS)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         val newStatus = when (request.action) {
             "approve" -> {
-                // 截图下架（保留证据，标记 deleted）
-                if (screenshot != null) {
-                    screenshotRepository.markDeleted(screenshot.serverId, screenshot.id)
+                // 服务级事务：截图下架（保留证据，标记 deleted）+ 举报标记处理原子完成
+                database.withTransaction {
+                    if (screenshot != null) {
+                        screenshotRepository.markDeleted(screenshot.serverId, screenshot.id)
+                    }
+                    if (!reportRepository.handle(reportId, "approved", handlerId, request.handlerNote)) {
+                        throw IllegalStateException("handle report failed")
+                    }
                 }
                 "approved"
             }
 
-            "reject" -> "rejected"
+            "reject" -> {
+                if (!reportRepository.handle(reportId, "rejected", handlerId, request.handlerNote)) {
+                    return CommonStatusCode.FAILURE.emptyData()
+                }
+                "rejected"
+            }
+
             else -> return AdminStatusCode.INVALID_ACTION.emptyData()
-        }
-        if (!reportRepository.handle(reportId, newStatus, handlerId, request.handlerNote)) {
-            return CommonStatusCode.FAILURE.emptyData()
         }
         val updated = reportRepository.getById(reportId) ?: return CommonStatusCode.FAILURE.emptyData()
         return CommonStatusCode.SUCCESS.withData(
@@ -98,7 +120,7 @@ class AdminServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrAdmin(adminId, serverId)) {
+        if (!permissionGuard.requirePermission(serverId, adminId, PermissionBit.CAN_MANAGE_SCREENSHOTS)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (request.durationHours == 0 || request.durationHours < -1) {
@@ -121,7 +143,7 @@ class AdminServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrAdmin(adminId, serverId)) {
+        if (!permissionGuard.requirePermission(serverId, adminId, PermissionBit.CAN_MANAGE_SCREENSHOTS)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         return CommonStatusCode.SUCCESS.withData(
@@ -133,7 +155,7 @@ class AdminServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrAdmin(adminId, serverId)) {
+        if (!permissionGuard.requirePermission(serverId, adminId, PermissionBit.CAN_MANAGE_SCREENSHOTS)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (banRepository.getById(serverId, banId) == null) {
@@ -146,12 +168,6 @@ class AdminServiceImpl(
     }
 
     // ── 辅助 ──
-
-    private suspend fun isOwnerOrAdmin(userId: Long, serverId: Long): Boolean {
-        if (userRepository.getByUid(userId)?.role == SystemRole.ADMIN) return true
-        val role = serverMemberRepository.getByServerAndUser(serverId, userId)?.role
-        return role == ServerRole.OWNER || role == ServerRole.ADMIN
-    }
 
     private fun moe.tabidachi.meadow.database.model.Ban.toInfo(): BanInfo {
         return BanInfo(

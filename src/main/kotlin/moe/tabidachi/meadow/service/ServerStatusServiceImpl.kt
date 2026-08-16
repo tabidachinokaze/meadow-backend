@@ -1,5 +1,6 @@
 package moe.tabidachi.meadow.service
 
+import moe.tabidachi.meadow.ktx.withTransaction
 import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.model.request.ServerStatusRequest
 import moe.tabidachi.meadow.repository.ModRepository
@@ -13,6 +14,7 @@ class ServerStatusServiceImpl(
     private val serverPlayerRepository: ServerPlayerRepository,
     private val modRepository: ModRepository,
     private val playerPositionRepository: PlayerPositionRepository,
+    private val database: org.jetbrains.exposed.v1.jdbc.Database,
 ) : ServerStatusService {
 
     override suspend fun report(serverId: Long, request: ServerStatusRequest): Response<ServerStatusResult?> {
@@ -26,52 +28,57 @@ class ServerStatusServiceImpl(
         }
 
         val now = Clock.System.now()
-        // 更新服务器状态字段
-        val updated = serverRepository.update(
-            serverId = serverId,
-            onlinePlayers = request.onlinePlayers,
-            maxPlayers = request.maxPlayers,
-            uptimeSeconds = request.uptimeSeconds,
-            lastStatusAt = now,
-        )
-        if (!updated) {
-            return CommonStatusCode.FAILURE.emptyData()
-        }
-
-        // 同步在线玩家
-        val onlinePlayers = serverPlayerRepository.syncOnline(
-            serverId = serverId,
-            online = request.players.map { it.uuid to it.name },
-            now = now,
-        )
-
-        // 同步玩家实时位置（Agent 上报携带坐标时；地图模块 §9.4.2 数据源）
-        request.players.filter { it.x != null && it.y != null && it.z != null }.forEach { p ->
-            playerPositionRepository.upsert(
+        // 服务级事务：服务器状态 + 在线玩家 + 坐标 + Mod 列表原子完成（10s 上报高频路径）
+        val onlinePlayerCount = database.withTransaction {
+            // 更新服务器状态字段
+            val updated = serverRepository.update(
                 serverId = serverId,
-                gameUuid = p.uuid,
-                playerName = p.name,
-                x = p.x!!,
-                y = p.y!!,
-                z = p.z!!,
-                world = p.world,
+                onlinePlayers = request.onlinePlayers,
+                maxPlayers = request.maxPlayers,
+                uptimeSeconds = request.uptimeSeconds,
+                lastStatusAt = now,
+            )
+            if (!updated) {
+                return@withTransaction null
+            }
+
+            // 同步在线玩家
+            val onlinePlayers = serverPlayerRepository.syncOnline(
+                serverId = serverId,
+                online = request.players.map { it.uuid to it.name },
                 now = now,
             )
-        }
 
-        // 同步 Mod 列表（Agent 全量上报时更新）
-        if (request.mods.isNotEmpty()) {
-            modRepository.syncMods(
-                serverId = serverId,
-                mods = request.mods.map { Triple(it.name, it.version, it.category) },
-            )
-        }
+            // 同步玩家实时位置（Agent 上报携带坐标时；地图模块 §9.4.2 数据源）
+            request.players.filter { it.x != null && it.y != null && it.z != null }.forEach { p ->
+                playerPositionRepository.upsert(
+                    serverId = serverId,
+                    gameUuid = p.uuid,
+                    playerName = p.name,
+                    x = p.x!!,
+                    y = p.y!!,
+                    z = p.z!!,
+                    world = p.world,
+                    now = now,
+                )
+            }
+
+            // 同步 Mod 列表（Agent 全量上报时更新）
+            if (request.mods.isNotEmpty()) {
+                modRepository.syncMods(
+                    serverId = serverId,
+                    mods = request.mods.map { Triple(it.name, it.version, it.category) },
+                )
+            }
+
+            onlinePlayers.size
+        } ?: return CommonStatusCode.FAILURE.emptyData()
 
         return CommonStatusCode.SUCCESS.withData(
             ServerStatusResult(
                 onlinePlayers = request.onlinePlayers,
                 maxPlayers = request.maxPlayers,
-                onlinePlayerCount = onlinePlayers.size,
+                onlinePlayerCount = onlinePlayerCount,
                 syncedAt = now,
             )
         )

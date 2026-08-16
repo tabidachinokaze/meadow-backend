@@ -11,8 +11,11 @@ import io.ktor.server.routing.openapi.*
 import io.ktor.utils.io.*
 import moe.tabidachi.meadow.contract.AuthenticationNames
 import moe.tabidachi.meadow.ktx.callingUserId
+import moe.tabidachi.meadow.ktx.readBytesWithLimit
 import moe.tabidachi.meadow.ktx.callingUserIdOrNull
+import moe.tabidachi.meadow.ktx.readBytesWithLimit
 import moe.tabidachi.meadow.ktx.getParameter
+import moe.tabidachi.meadow.ktx.readBytesWithLimit
 import moe.tabidachi.meadow.model.CommonStatusCode
 import moe.tabidachi.meadow.model.UserInfo
 import moe.tabidachi.meadow.model.UserStatusCode
@@ -105,9 +108,9 @@ fun Route.user() {
             when (part) {
                 is PartData.FileItem -> {
                     val mimeType = part.contentType?.toString() ?: ContentType.Image.PNG.toString()
-                    val fileBytes = part.provider().toByteArray()
+                    val fileBytes = part.readBytesWithLimit(5 * 1024 * 1024)
 
-                    if (mimeType in allowedImageTypes && fileBytes.isNotEmpty() && fileBytes.size <= 2 * 1024 * 1000) {
+                    if (mimeType in allowedImageTypes && fileBytes != null && fileBytes.isNotEmpty() && fileBytes.size <= 2 * 1024 * 1000) {
                         val uniqueFileName = "${callingUserId}_${Uuid.random().toHexString()}.png"
                         uploadedUrl = storageService.uploadAvatar(
                             bytes = fileBytes,
@@ -175,9 +178,9 @@ fun Route.user() {
             when (part) {
                 is PartData.FileItem -> {
                     val mimeType = part.contentType?.toString() ?: ContentType.Image.PNG.toString()
-                    val fileBytes = part.provider().toByteArray()
+                    val fileBytes = part.readBytesWithLimit(5 * 1024 * 1024)
 
-                    if (mimeType in allowedImageTypes && fileBytes.isNotEmpty() && fileBytes.size <= 5 * 1024 * 1000) {
+                    if (mimeType in allowedImageTypes && fileBytes != null && fileBytes.isNotEmpty() && fileBytes.size <= 5 * 1024 * 1000) {
                         val uniqueFileName = "b_${callingUserId}_${Uuid.random().toHexString()}.png"
                         uploadedUrl = storageService.uploadAvatar(
                             bytes = fileBytes,

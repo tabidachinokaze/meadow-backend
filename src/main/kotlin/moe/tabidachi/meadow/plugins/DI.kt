@@ -37,7 +37,9 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Duration.Companion.seconds
 
 fun Application.configureDI() {
-    val testing = propertyOrNull<Boolean>("ktor.development") == true
+    // development 标记：兼容布尔/字符串两种解析（yaml 支持 ${MEADOW_DEVELOPMENT:true} 环境变量覆盖）
+    val devRaw = propertyOrNull<String>("ktor.development")?.toString() ?: "true"
+    val testing = devRaw.equals("true", ignoreCase = true)
     val mode = if (testing) "test" else "main"
     val argon2Config = property<Argon2Config>("argon2")
     val jwtConfig = property<JwtConfig>("jwt")
@@ -208,6 +210,11 @@ fun Application.configureDI() {
         }
     }
     dependencies {
+        provide<PermissionGuard> {
+            PermissionGuardImpl(
+                serverMemberRepository = resolve()
+            )
+        }
         provide<AuthService> {
             AuthServiceImpl(
                 jwt = resolve(),
@@ -234,14 +241,17 @@ fun Application.configureDI() {
                 serverRepository = resolve(),
                 userRepository = resolve(),
                 captchaValidator = resolve(),
-                serverMemberRepository = resolve()
+                serverMemberRepository = resolve(),
+                permissionGuard = resolve(),
+                database = resolve()
             )
         }
         provide<ServerMemberService> {
             ServerMemberServiceImpl(
                 serverMemberRepository = resolve(),
                 serverRepository = resolve(),
-                userRepository = resolve()
+                userRepository = resolve(),
+                database = resolve()
             )
         }
         provide<FavoriteService> {
@@ -257,7 +267,8 @@ fun Application.configureDI() {
                 serverMemberRepository = resolve(),
                 userRepository = resolve(),
                 storageService = resolve(),
-                reportRepository = resolve()
+                reportRepository = resolve(),
+                database = resolve()
             )
         }
         provide<ServerStatusService> {
@@ -265,7 +276,8 @@ fun Application.configureDI() {
                 serverRepository = resolve(),
                 serverPlayerRepository = resolve(),
                 modRepository = resolve(),
-                playerPositionRepository = resolve()
+                playerPositionRepository = resolve(),
+                database = resolve()
             )
         }
         provide<PlayerService> {
@@ -296,18 +308,17 @@ fun Application.configureDI() {
             WorldServiceImpl(
                 worldRepository = resolve(),
                 serverRepository = resolve(),
-                serverMemberRepository = resolve(),
-                userRepository = resolve(),
-                storageService = resolve()
+                storageService = resolve(),
+                permissionGuard = resolve()
             )
         }
         provide<ModpackService> {
             ModpackServiceImpl(
                 modpackRepository = resolve(),
                 serverRepository = resolve(),
-                serverMemberRepository = resolve(),
-                userRepository = resolve(),
-                storageService = resolve()
+                storageService = resolve(),
+                permissionGuard = resolve(),
+                database = resolve()
             )
         }
         provide<AdminService> {
@@ -317,7 +328,9 @@ fun Application.configureDI() {
                 screenshotRepository = resolve(),
                 serverRepository = resolve(),
                 serverMemberRepository = resolve(),
-                userRepository = resolve()
+                userRepository = resolve(),
+                permissionGuard = resolve(),
+                database = resolve()
             )
         }
         provide<MapService> {
@@ -325,8 +338,8 @@ fun Application.configureDI() {
                 mapConfigRepository = resolve(),
                 playerPositionRepository = resolve(),
                 serverRepository = resolve(),
-                serverMemberRepository = resolve(),
-                userRepository = resolve()
+                userRepository = resolve(),
+                permissionGuard = resolve()
             )
         }
     }

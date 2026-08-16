@@ -3,6 +3,7 @@ package moe.tabidachi.meadow.plugins
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.config.*
+import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sse.*
 import moe.tabidachi.meadow.model.config.JwtConfig
@@ -28,6 +29,10 @@ fun Application.configureRouting() {
     install(SSE)
     val jwtConfig = property<JwtConfig>("jwt")
     routing {
+        // 健康检查（容器编排/负载均衡探针）
+        get("/healthz") {
+            call.respondText("ok")
+        }
         auth()
         swagger()
         chatSocket()

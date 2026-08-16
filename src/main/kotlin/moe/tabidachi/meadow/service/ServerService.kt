@@ -1,7 +1,7 @@
 package moe.tabidachi.meadow.service
 
 import moe.tabidachi.meadow.database.model.ServerRole
-import moe.tabidachi.meadow.database.model.SystemRole
+import moe.tabidachi.meadow.ktx.withTransaction
 import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.model.request.GameIdBindRequest
 import moe.tabidachi.meadow.model.request.ServerInitializeRequest
@@ -29,6 +29,8 @@ class ServerServiceImpl(
     private val userRepository: UserRepository,
     private val captchaValidator: CaptchaValidator,
     private val serverMemberRepository: ServerMemberRepository,
+    private val permissionGuard: PermissionGuard,
+    private val database: org.jetbrains.exposed.v1.jdbc.Database,
 ) : ServerService {
     private val bindingUsers: MutableMap<String, Long> = mutableMapOf()
 
@@ -40,28 +42,31 @@ class ServerServiceImpl(
             ) != null -> ServerStatusCode.SERVER_ALREADY_EXISTS.emptyData()
 
             else -> {
-                val serverId = serverRepository.create(
-                    name = request.name,
-                    description = request.description,
-                    host = request.host,
-                    port = request.port,
-                    modLoader = request.modLoader,
-                    version = request.version,
-                    bannerUrl = request.bannerUrl,
-                    tags = request.tags,
-                    ownerId = ownerId,
-                    rconHost = request.rconHost,
-                    rconPort = request.rconPort,
-                    rconPassword = request.rconPassword,
-                    serverKey = request.serverKey,
-                    machineId = request.machineId,
-                )
-                // 创建服务器后同步写入 owner 成员记录（权限体系，规划 §9.1.2；OWNER 恒为全权限）
-                serverMemberRepository.add(
-                    serverId, ownerId, ServerRole.OWNER,
-                    moe.tabidachi.meadow.database.model.MemberPermissions.OWNER_ALL
-                )
-                val serverInfo = serverRepository.getServerInfo(serverId)
+                // 服务级事务：服务器创建 + owner 成员写入原子完成（任一失败整体回滚）
+                val serverInfo = database.withTransaction {
+                    val serverId = serverRepository.create(
+                        name = request.name,
+                        description = request.description,
+                        host = request.host,
+                        port = request.port,
+                        modLoader = request.modLoader,
+                        version = request.version,
+                        bannerUrl = request.bannerUrl,
+                        tags = request.tags,
+                        ownerId = ownerId,
+                        rconHost = request.rconHost,
+                        rconPort = request.rconPort,
+                        rconPassword = request.rconPassword,
+                        serverKey = request.serverKey,
+                        machineId = request.machineId,
+                    )
+                    // 创建服务器后同步写入 owner 成员记录（权限体系，规划 §9.1.2；OWNER 恒为全权限）
+                    serverMemberRepository.add(
+                        serverId, ownerId, ServerRole.OWNER,
+                        moe.tabidachi.meadow.database.model.MemberPermissions.OWNER_ALL
+                    )
+                    serverRepository.getServerInfo(serverId)
+                }
                 CommonStatusCode.SUCCESS.withData(serverInfo)
             }
         }
@@ -88,14 +93,12 @@ class ServerServiceImpl(
             server == null -> ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
             request.isEmpty() -> ServerStatusCode.WITHOUT_ANY_FIELDS.emptyData()
             else -> {
-                // 权限：owner / 管理员（ADMIN）/ 系统管理员可编辑基本信息；RCON 字段仅 owner / 系统管理员可改
-                val memberRole = serverMemberRepository.getByServerAndUser(serverId, ownerId)?.role
-                val isSystemAdmin = userRepository.getByUid(ownerId)?.role == SystemRole.ADMIN
                 val isOwner = server.ownerId == ownerId
-                val canEdit = isOwner || memberRole == ServerRole.ADMIN || isSystemAdmin
-                if (!canEdit) return CommonStatusCode.FORBIDDEN.emptyData()
-
-                val canManageRcon = isOwner || isSystemAdmin
+                // 权限位：编辑基本信息需 CAN_EDIT_SERVER；RCON 字段需 CAN_MANAGE_RCON
+                if (!permissionGuard.requirePermission(serverId, ownerId, PermissionBit.CAN_EDIT_SERVER)) {
+                    return CommonStatusCode.FORBIDDEN.emptyData()
+                }
+                val canManageRcon = permissionGuard.requirePermission(serverId, ownerId, PermissionBit.CAN_MANAGE_RCON)
                 if (!canManageRcon && (request.rconHost != null || request.rconPort != null || request.rconPassword != null)) {
                     return CommonStatusCode.FORBIDDEN.emptyData()
                 }
@@ -132,7 +135,8 @@ class ServerServiceImpl(
         val server = serverRepository.getById(serverId)
         return when {
             server == null -> ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
-            server.ownerId != ownerId -> CommonStatusCode.FORBIDDEN.emptyData()
+            !permissionGuard.requirePermission(serverId, ownerId, PermissionBit.CAN_DELETE_SERVER) ->
+                CommonStatusCode.FORBIDDEN.emptyData()
             else -> {
                 if (serverRepository.delete(serverId)) {
                     CommonStatusCode.SUCCESS.withData(serverId)

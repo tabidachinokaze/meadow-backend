@@ -1,12 +1,9 @@
 package moe.tabidachi.meadow.service
 
-import moe.tabidachi.meadow.database.model.ServerRole
-import moe.tabidachi.meadow.database.model.SystemRole
 import moe.tabidachi.meadow.model.*
 import moe.tabidachi.meadow.model.request.MapConfigRequest
 import moe.tabidachi.meadow.repository.MapConfigRepository
 import moe.tabidachi.meadow.repository.PlayerPositionRepository
-import moe.tabidachi.meadow.repository.ServerMemberRepository
 import moe.tabidachi.meadow.repository.ServerRepository
 import moe.tabidachi.meadow.repository.UserRepository
 import kotlin.time.Clock
@@ -15,8 +12,8 @@ class MapServiceImpl(
     private val mapConfigRepository: MapConfigRepository,
     private val playerPositionRepository: PlayerPositionRepository,
     private val serverRepository: ServerRepository,
-    private val serverMemberRepository: ServerMemberRepository,
     private val userRepository: UserRepository,
+    private val permissionGuard: PermissionGuard,
 ) : MapService {
 
     override suspend fun getConfig(serverId: Long): Response<MapConfigInfo?> {
@@ -36,7 +33,7 @@ class MapServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrAdmin(adminId, serverId)) {
+        if (!permissionGuard.requirePermission(serverId, adminId, PermissionBit.CAN_EDIT_SERVER)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         val saved = mapConfigRepository.upsert(
@@ -81,12 +78,6 @@ class MapServiceImpl(
     }
 
     // ── 辅助 ──
-
-    private suspend fun isOwnerOrAdmin(userId: Long, serverId: Long): Boolean {
-        if (userRepository.getByUid(userId)?.role == SystemRole.ADMIN) return true
-        val role = serverMemberRepository.getByServerAndUser(serverId, userId)?.role
-        return role == ServerRole.OWNER || role == ServerRole.ADMIN
-    }
 
     private fun moe.tabidachi.meadow.database.model.MapConfig.toInfo(): MapConfigInfo =
         MapConfigInfo(

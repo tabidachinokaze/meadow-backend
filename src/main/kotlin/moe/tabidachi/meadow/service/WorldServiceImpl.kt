@@ -1,20 +1,15 @@
 package moe.tabidachi.meadow.service
 
-import moe.tabidachi.meadow.database.model.ServerRole
-import moe.tabidachi.meadow.database.model.SystemRole
 import moe.tabidachi.meadow.model.*
-import moe.tabidachi.meadow.repository.ServerMemberRepository
 import moe.tabidachi.meadow.repository.ServerRepository
-import moe.tabidachi.meadow.repository.UserRepository
 import moe.tabidachi.meadow.repository.WorldRepository
 import kotlin.uuid.Uuid
 
 class WorldServiceImpl(
     private val worldRepository: WorldRepository,
     private val serverRepository: ServerRepository,
-    private val serverMemberRepository: ServerMemberRepository,
-    private val userRepository: UserRepository,
     private val storageService: StorageService,
+    private val permissionGuard: PermissionGuard,
 ) : WorldService {
 
     override suspend fun getWorlds(serverId: Long): Response<List<WorldInfo>?> {
@@ -36,7 +31,7 @@ class WorldServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrAdmin(callerId, serverId)) {
+        if (!permissionGuard.requirePermission(serverId, callerId, PermissionBit.CAN_MANAGE_WORLDS)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (bytes.isEmpty() || bytes.size > 2L * 1024 * 1024 * 1024) {
@@ -87,7 +82,7 @@ class WorldServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrAdmin(callerId, serverId)) {
+        if (!permissionGuard.requirePermission(serverId, callerId, PermissionBit.CAN_MANAGE_WORLDS)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (worldRepository.getById(serverId, worldId) == null) {
@@ -103,7 +98,7 @@ class WorldServiceImpl(
         if (serverRepository.getById(serverId) == null) {
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
-        if (!isOwnerOrAdmin(callerId, serverId)) {
+        if (!permissionGuard.requirePermission(serverId, callerId, PermissionBit.CAN_MANAGE_WORLDS)) {
             return CommonStatusCode.FORBIDDEN.emptyData()
         }
         if (worldRepository.getById(serverId, worldId) == null) {
@@ -116,12 +111,6 @@ class WorldServiceImpl(
     }
 
     // ── 辅助 ──
-
-    private suspend fun isOwnerOrAdmin(callerId: Long, serverId: Long): Boolean {
-        if (userRepository.getByUid(callerId)?.role == SystemRole.ADMIN) return true
-        val role = serverMemberRepository.getByServerAndUser(serverId, callerId)?.role
-        return role == ServerRole.OWNER || role == ServerRole.ADMIN
-    }
 
     private fun moe.tabidachi.meadow.database.model.WorldSave.toInfo(): WorldInfo {
         return WorldInfo(
