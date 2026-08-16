@@ -16,7 +16,9 @@ import moe.tabidachi.meadow.ktx.getParameter
 import moe.tabidachi.meadow.model.CommonStatusCode
 import moe.tabidachi.meadow.model.UserInfo
 import moe.tabidachi.meadow.model.UserStatusCode
+import moe.tabidachi.meadow.model.ValidStatusCode
 import moe.tabidachi.meadow.model.emptyData
+import moe.tabidachi.meadow.model.request.RebindEmailRequest
 import moe.tabidachi.meadow.model.request.UpdatePasswordRequest
 import moe.tabidachi.meadow.model.request.UpdateUserInfoRequest
 import moe.tabidachi.meadow.service.StorageService
@@ -151,6 +153,38 @@ fun Route.user() {
         }
     }
 
+    post<RebindEmailRequest>("/users/{uid}/email") { request ->
+        val targetUserId = getParameter<Long>("uid")
+        call.respond(userService.updateEmail(callingUserId, targetUserId, request))
+    }.describe {
+        summary = "换绑邮箱"
+        parameters {
+            path("uid") {
+                description = "用户ID"
+                required = true
+            }
+        }
+        responses {
+            HttpStatusCode.OK {
+                description = buildString {
+                    appendLine("code:")
+                    listOf(
+                        CommonStatusCode.FORBIDDEN,
+                        ValidStatusCode.INVALID_EMAIL,
+                        UserStatusCode.EMAIL_ALREADY_EXISTS,
+                        UserStatusCode.VERIFICATION_CODE_ERROR,
+                        UserStatusCode.VERIFICATION_CODE_EXPIRED,
+                        CommonStatusCode.SUCCESS
+                    ).forEach {
+                        appendLine("- ${it.code}: ${it.message}")
+                    }
+                    appendLine()
+                    appendLine("data: 用户信息")
+                }
+            }
+        }
+    }
+
     post<UpdatePasswordRequest>("/users/{uid}/password") { request ->
         val targetUserId = getParameter<Long>("uid")
         call.respond(userService.updatePassword(callingUserId, targetUserId, request))
@@ -174,6 +208,35 @@ fun Route.user() {
                     ).forEach {
                         appendLine("- ${it.code}: ${it.message}")
                     }
+                }
+            }
+        }
+    }
+
+    post("/users/{uid}/deactivate") {
+        val targetUserId = getParameter<Long>("uid")
+        call.respond(userService.deactivateAccount(callingUserId, targetUserId))
+    }.describe {
+        summary = "注销账号（软删除）"
+        parameters {
+            path("uid") {
+                description = "用户ID"
+                required = true
+            }
+        }
+        responses {
+            HttpStatusCode.OK {
+                description = buildString {
+                    appendLine("code:")
+                    listOf(
+                        UserStatusCode.USER_NOT_FOUND,
+                        CommonStatusCode.SUCCESS,
+                        CommonStatusCode.FORBIDDEN
+                    ).forEach {
+                        appendLine("- ${it.code}: ${it.message}")
+                    }
+                    appendLine()
+                    appendLine("data: 被注销的用户ID")
                 }
             }
         }

@@ -55,6 +55,11 @@ interface ServerRepository {
         isVerified: Boolean? = null,
         serverKey: String? = null,
         machineId: String? = null,
+        ownerId: Long? = null,
+        onlinePlayers: Int? = null,
+        maxPlayers: Int? = null,
+        uptimeSeconds: Long? = null,
+        lastStatusAt: kotlin.time.Instant? = null,
     ): Boolean
 
     suspend fun delete(serverId: Long): Boolean
@@ -139,7 +144,12 @@ class ServerRepositoryImpl(
         rconPassword: String?,
         isVerified: Boolean?,
         serverKey: String?,
-        machineId: String?
+        machineId: String?,
+        ownerId: Long?,
+        onlinePlayers: Int?,
+        maxPlayers: Int?,
+        uptimeSeconds: Long?,
+        lastStatusAt: kotlin.time.Instant?
     ): Boolean = database.withTransaction {
         val updateCount = ServerTable.update({ ServerTable.id.eq(serverId) }) { statement ->
             statement.setIfNotNull(ServerTable.name, name)
@@ -156,6 +166,11 @@ class ServerRepositoryImpl(
             statement.setIfNotNull(ServerTable.isVerified, isVerified)
             statement.setIfNotNull(ServerTable.serverKey, serverKey)
             statement.setIfNotNull(ServerTable.machineId, machineId)
+            statement.setIfNotNull(ServerTable.ownerId, ownerId)
+            statement.setIfNotNull(ServerTable.onlinePlayers, onlinePlayers)
+            statement.setIfNotNull(ServerTable.maxPlayers, maxPlayers)
+            statement.setIfNotNull(ServerTable.uptimeSeconds, uptimeSeconds)
+            statement.setIfNotNull(ServerTable.lastStatusAt, lastStatusAt)
             statement[ServerTable.updatedAt] = Clock.System.now()
         }
         updateCount > 0

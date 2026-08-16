@@ -20,6 +20,10 @@ object ServerTable : LongIdTable(name = "server") {
     val isVerified = bool("is_verified").default(false)
     val serverKey = text("server_key")
     val machineId = varchar("machine_id", 255).nullable()
+    val onlinePlayers = integer("online_players").default(0)
+    val maxPlayers = integer("max_players").default(0)
+    val uptimeSeconds = long("uptime_seconds").default(0)
+    val lastStatusAt = timestamp("last_status_at").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 

@@ -1,16 +1,20 @@
 package moe.tabidachi.meadow.service
 
 import moe.tabidachi.meadow.model.*
+import moe.tabidachi.meadow.model.request.RebindEmailRequest
 import moe.tabidachi.meadow.model.request.UpdatePasswordRequest
 import moe.tabidachi.meadow.model.request.UpdateUserInfoRequest
+import moe.tabidachi.meadow.regex.RegexEmail
 import moe.tabidachi.meadow.repository.UserRelationRepository
 import moe.tabidachi.meadow.repository.UserRepository
+import moe.tabidachi.meadow.security.CaptchaValidator
 import moe.tabidachi.meadow.security.Encryptor
 
 class UserServiceImpl(
     private val userRepository: UserRepository,
     private val userRelationRepository: UserRelationRepository,
-    private val encryptor: Encryptor
+    private val encryptor: Encryptor,
+    private val captchaValidator: CaptchaValidator,
 ) : UserService {
     override suspend fun getUserInfo(callingUserId: Long?, targetUserId: Long): Response<UserInfo?> {
         val userInfo = userRepository.getUserInfo(targetUserId)
@@ -102,8 +106,40 @@ class UserServiceImpl(
     override suspend fun updateEmail(
         callingUserId: Long,
         targetUserId: Long,
-        request: UpdatePasswordRequest
+        request: RebindEmailRequest
     ): Response<UserInfo?> {
-        TODO("Not yet implemented")
+        return when {
+            callingUserId != targetUserId -> CommonStatusCode.FORBIDDEN.emptyData()
+            !RegexEmail.matches(request.newEmail) -> ValidStatusCode.INVALID_EMAIL.emptyData()
+            userRepository.getByEmail(request.newEmail) != null ->
+                UserStatusCode.EMAIL_ALREADY_EXISTS.emptyData()
+
+            else -> when (
+                captchaValidator.validate("email:code:REBIND:${request.newEmail}", request.verificationCode)
+            ) {
+                CaptchaValidator.ValidationResult.ERROR ->
+                    UserStatusCode.VERIFICATION_CODE_ERROR.emptyData()
+
+                CaptchaValidator.ValidationResult.EXPIRED ->
+                    UserStatusCode.VERIFICATION_CODE_EXPIRED.emptyData()
+
+                CaptchaValidator.ValidationResult.CORRECT -> {
+                    if (userRepository.updateUserInfo(callingUserId, email = request.newEmail)) {
+                        getUserInfo(callingUserId, targetUserId)
+                    } else {
+                        CommonStatusCode.FAILURE.emptyData()
+                    }
+                }
+            }
+        }
+    }
+
+    override suspend fun deactivateAccount(callingUserId: Long, targetUserId: Long): Response<Long?> {
+        return when {
+            callingUserId != targetUserId -> CommonStatusCode.FORBIDDEN.emptyData()
+            userRepository.getByUid(targetUserId) == null -> UserStatusCode.USER_NOT_FOUND.emptyData()
+            userRepository.deactivate(targetUserId) -> CommonStatusCode.SUCCESS.withData(targetUserId)
+            else -> CommonStatusCode.FAILURE.emptyData()
+        }
     }
 }

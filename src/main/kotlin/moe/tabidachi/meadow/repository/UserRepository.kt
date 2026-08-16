@@ -39,6 +39,9 @@ interface UserRepository {
     ): Boolean
 
     suspend fun updatePassword(uid: Long, password: String): Boolean
+
+    /** 注销账号（软删除：is_active=false） */
+    suspend fun deactivate(uid: Long): Boolean
 }
 
 class UserRepositoryImpl(
@@ -132,6 +135,14 @@ class UserRepositoryImpl(
         val updateCount = UserTable.update({ UserTable.id.eq(uid) }) {
             it[UserTable.password] = encryptor.encrypt(password)
             it[UserTable.updatedAt] = Clock.System.now()
+        }
+        updateCount > 0
+    }
+
+    override suspend fun deactivate(uid: Long): Boolean = database.withTransaction {
+        val updateCount = UserTable.update({ UserTable.id.eq(uid) }) {
+            it[isActive] = false
+            it[updatedAt] = Clock.System.now()
         }
         updateCount > 0
     }

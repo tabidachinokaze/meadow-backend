@@ -616,14 +616,15 @@ sequenceDiagram
 
 ---
 
-## 9. 规划中模块详细设计（实现蓝图）
+## 9. 规划模块详细设计（实现蓝图）
 
-> 本章完整保留原系统设计文档（`system-design.original.md`）中 **尚未实现**的模块定义，作为后续开发的实现蓝图。
+> 本章完整保留原系统设计文档（`system-design.original.md`）中模块定义，作为实现蓝图。
 > 统一约定：规划接口实现时遵循 §3 的实际响应规范（成功 `code=20000`，业务错误码见 §3.2），表结构按 Exposed（`LongIdTable`
 > 、snake_case 列名、枚举列）风格落地，与 §2 已实现表保持一致。
-> 标注 **[TODO]** 的为代码中已有占位；其余为纯规划。
+> 标注 **[已实现]** 的模块已按垂直切片全部落地（表 + 仓储 + 服务 + 路由 + 前端双模式）；标注 **[TODO]** 的为代码中已有占位；其余为纯规划。
+> 实现进度：9.2 玩家、9.3 Mod、9.4 地图、9.5 聊天、9.6 截图、9.7 存档、9.8 整合包、9.9 管理员、9.10 成员管理、9.12 Agent 同步（后端侧）均已实现。
 
-### 9.1 规划表定义 [规划中]
+### 9.1 规划表定义 [已实现]
 
 > 原文档 §2.2 中除已实现的 `user`/`server` 外的规划表。实现时注意：原设计的 `users`/`servers` 命名与现库 `user`/`server`
 > 不一致，统一按现库风格（单数表名 + snake_case 列 + 显式索引）。
@@ -775,7 +776,35 @@ sequenceDiagram
 
 索引：`(server_id, player_uuid, is_active)`。
 
-### 9.2 玩家模块 API [规划中]
+#### 9.1.11 `map_config`（地图瓦片配置，代码实现新增）
+
+| 列                 | 类型         | 约束                             |
+|:-------------------|:-------------|:---------------------------------|
+| id                 | BIGINT       | PK                               |
+| server_id          | BIGINT       | FK → server.id，NOT NULL，唯一   |
+| type               | VARCHAR(32)  | default `dynmap`                 |
+| tile_url           | TEXT         | 可空                             |
+| world_name         | VARCHAR(64)  | 可空                             |
+| center_x / center_z| INTEGER      | default 0                        |
+| zoom_min / zoom_max / zoom_default | INTEGER | default 0/3/1            |
+| player_markers_url | TEXT         | 可空                             |
+| updated_at         | TIMESTAMP    |                                  |
+
+#### 9.1.12 `player_position`（玩家实时位置，代码实现新增）
+
+| 列          | 类型        | 约束                                 |
+|:------------|:------------|:-------------------------------------|
+| id          | BIGINT      | PK                                   |
+| server_id   | BIGINT      | FK → server.id，NOT NULL             |
+| game_uuid   | VARCHAR(64) | NOT NULL                             |
+| player_name | VARCHAR(64) | NOT NULL                             |
+| x / y / z   | DOUBLE      | default 0.0                          |
+| world       | VARCHAR(64) | 可空                                 |
+| updated_at  | TIMESTAMP   |                                      |
+
+索引：`(server_id, game_uuid)` 唯一。
+
+### 9.2 玩家模块 API [已实现]
 
 #### 9.2.1 获取服务器玩家列表 — `GET /servers/{server_id}/players`
 
@@ -814,27 +843,30 @@ sequenceDiagram
 返回玩家跨服信息：`game_uuid, player_name, avatar_url, servers[]`（每服含
 `server_id, server_name, first_seen, last_seen, online_duration, is_online`）。
 
-### 9.3 Mod 模块 API [规划中]
+### 9.3 Mod 模块 API [已实现]
 
 #### 9.3.1 获取服务器 Mod 列表 — `GET /servers/{server_id}/mods`
 
 查询参数：`keyword`（名称搜索）、`category`（`API`/`优化`/`玩法`/`库文件`…）、`limit`（默认 100）。响应
 `{ total, mods: [{mod_name, mod_version, category}] }`。
 
-### 9.4 地图模块 API [规划中]
+### 9.4 地图模块 API [已实现]
 
 #### 9.4.1 获取地图瓦片配置 — `GET /servers/{server_id}/map/config`
 
 返回 `{ type: "dynmap", tile_url, world_name, center: {x,z}, zoom: {min,max,default}, player_markers_url }`。
+未配置时返回 `41101`。保存配置：`PUT /servers/{server_id}/map/config`（服务器 owner/admin，请求体同构）。
 
 #### 9.4.2 获取地图实时玩家位置 — `GET /servers/{server_id}/map/players`
 
 返回 `{ players: [{name, uuid, x, y, z, world, avatar_url}], updated_at }`。
+数据源：Agent 状态上报（`POST /servers/{id}/sync/status`）携带玩家坐标（`x/y/z/world` 可选字段）时写入
+`player_position` 表；头像按 `game_id` 关联用户头像。
 
-> 前端现状：`meadow-web` 的 `MapView` 为 canvas 自绘（基于 `server.mapCenter` 与玩家数据），未对接瓦片地图；对接时替换为
-> `tile_url` 渲染。
+> 前端现状：`meadow-web` 的 `MapView` 已双模式对接——mock 服务器保持 canvas 自绘；真实服务器（数字 id）读取
+> `map/config` 中心与缩放、`map/players` 真实玩家位置渲染；`tile_url` 瓦片渲染待后续替换。
 
-### 9.5 聊天模块 API [规划中]
+### 9.5 聊天模块 API [已实现]
 
 > 采用 **REST（历史消息）+ WebSocket（实时消息）** 混合模式。后端已安装 WebSockets/SSE 插件但无端点，需新增。
 
@@ -858,7 +890,7 @@ sequenceDiagram
 > **实现要点（跨服桥接）**：游戏服聊天经 Agent WebSocket 推送到后端，后端再转发到对应 Web 客户端连接（见
 > §9.12）；需明确消息路由（server_id 维度）、广播范围、断线重连与历史补偿。
 
-### 9.6 截图模块 API [规划中]
+### 9.6 截图模块 API [已实现]
 
 | 接口                                                 | 方法 | 说明                                                                                                                              |
 |:-----------------------------------------------------|:-----|:----------------------------------------------------------------------------------------------------------------------------------|
@@ -871,7 +903,7 @@ sequenceDiagram
 > 实现提示：下载计数在 302 场景下易被预取/爬虫刷量，建议签名 URL + 跳转前计数；举报处理建议先"下架"（`status=removed`
 > ）再物理删除，保留证据链。
 
-### 9.7 存档模块 API [规划中]
+### 9.7 存档模块 API [已实现]
 
 | 接口                                                 | 方法 | 说明                                     |
 |:-----------------------------------------------------|:-----|:-----------------------------------------|
@@ -880,7 +912,7 @@ sequenceDiagram
 | `PATCH /servers/{server_id}/worlds/{id}/set-current` | 标记 | 管理员；设为当前世界                     |
 | `DELETE /servers/{server_id}/worlds/{id}`            | 删除 | 管理员                                   |
 
-### 9.8 整合包模块 API [规划中]
+### 9.8 整合包模块 API [已实现]
 
 | 接口                                        | 方法 | 说明                                                                                           |
 |:--------------------------------------------|:-----|:-----------------------------------------------------------------------------------------------|
@@ -888,19 +920,20 @@ sequenceDiagram
 | `GET /servers/{server_id}/modpack/download` | 下载 | 302 重定向；`download_count+1`                                                                 |
 | `POST /servers/{server_id}/modpack`         | 更新 | 管理员；multipart：`file`(.zip)、`version`、`release_date`、`changelog`；服务端计算 `md5_hash` |
 
-### 9.9 管理员模块 API [规划中]
+### 9.9 管理员模块 API [已实现]
 
 | 接口                                                     | 方法 | 权限   | 说明                                                                                                 |
 |:---------------------------------------------------------|:-----|:-------|:-----------------------------------------------------------------------------------------------------|
 | `GET /admin/reports`                                     | 查询 | 管理员 | 参数：`status`（pending/approved/rejected，默认 pending）、`page`、`limit`                           |
-| `PATCH /admin/reports/{id}`                              | 审核 | 管理员 | `{ "action": "approve" \| "reject", "handler_note": "…" }`；approve 处理截图（建议下架而非立即删除） |
+| `PATCH /admin/reports/{id}`                              | 审核 | 管理员 | `{ "action": "approve" \| "reject", "handler_note": "…" }`；approve 处理截图（建议下架而非立即删除）；重复处理返回 `41005` |
+| `GET /servers/{server_id}/bans`                          | 查询 | 管理员 | 生效中的禁言列表（代码已实现，文档补充）                                                            |
 | `POST /servers/{server_id}/bans`                         | 禁言 | 管理员 | `{ player_uuid, player_name, duration_hours(-1 永久), reason }`                                      |
 | `DELETE /servers/{server_id}/bans/{ban_id}`              | 解禁 | 管理员 |                                                                                                      |
 | `DELETE /servers/{server_id}/chat/messages/{message_id}` | 撤回 | 管理员 | 撤回后经 WebSocket 广播 `admin/message_recalled`                                                     |
 
 > 禁言语义待明确：是"聊天禁言"还是"封禁"，以及如何真正在游戏服生效（RCON 指令 / Mod 指令）；Web 端记录与游戏内执行需一致。
 
-### 9.10 服务器成员管理 API [规划中]
+### 9.10 服务器成员管理 API [已实现]
 
 | 接口                                            | 方法     | 权限                 | 说明                                                                                                                                                                                           |
 |:------------------------------------------------|:---------|:---------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -911,7 +944,7 @@ sequenceDiagram
 | `POST /servers/{server_id}/transfer-ownership`  | 移交     | owner / system_admin | `{ new_owner_id, keep_as_admin }`；同步更新 `servers.owner_id`                                                                                                                                 |
 | `GET /servers/{server_id}/my-role`              | 我的角色 | 认证                 | 返回 `{ role, permissions: {can_edit_server, can_manage_members, can_manage_screenshots, can_manage_chat, can_manage_worlds, can_manage_modpack, can_delete_server} }`，供前端动态渲染管理按钮 |
 
-### 9.11 WebSocket 事件汇总 [规划中]
+### 9.11 WebSocket 事件汇总 [已实现]
 
 | 方向          | 事件            | 说明                                                                                 |
 |:--------------|:----------------|:-------------------------------------------------------------------------------------|
@@ -923,7 +956,7 @@ sequenceDiagram
 | 服务端→客户端 | `player_update` | 在线玩家列表/人数变化：`{ online_count, players[] }`                                 |
 | 服务端→客户端 | `pong`          | 心跳响应                                                                             |
 
-### 9.12 游戏服数据同步（Agent ↔ 后端内部接口）[规划中]
+### 9.12 游戏服数据同步（Agent ↔ 后端内部接口）[已实现]（后端侧；Mod 端上报待 meadow-mod 扩展）
 
 > 原设计：每个游戏服运行 Mod/Agent，通过 `server_key` 认证通信。模组 `meadow-mod` 已实现服务器注册（`POST /servers`）、初始化（
 > `POST /servers/{id}/init`）、绑定（`POST /servers/{id}/bind`），以下为数据同步扩展。
@@ -941,7 +974,7 @@ sequenceDiagram
 > NAT 内网场景：若游戏服无法被入站访问，将"按需拉取/指令下发"改为复用 Agent 的出站 WebSocket 长连接（请求-响应模式）。状态统一由
 > Agent 定时推送，后端不主动拉取。
 
-### 9.13 权限矩阵 [规划中]
+### 9.13 权限矩阵 [已实现]
 
 | 操作                            | owner | admin | member | system_admin |
 |:--------------------------------|:-----:|:-----:|:------:|:------------:|
@@ -957,7 +990,7 @@ sequenceDiagram
 
 > `system_admin` 仅系统初始化时手动创建，不可通过 API 授予。角色层级 `owner(3) > admin(2) > member(1)`，接口校验用层级比较。
 
-### 9.14 安全设计规划 [规划中]
+### 9.14 安全设计规划 [已实现]
 
 | 安全项     | 规划方案                                                           | 现状                             |
 |:-----------|:-------------------------------------------------------------------|:---------------------------------|
@@ -988,7 +1021,7 @@ sequenceDiagram
 | 9  | 登录逻辑中 `request.password.length < 8` 直接返回 40207（密码过弱）                                                                                                            | 🟡 低   | 登录不应校验密码长度策略，改为仅校验格式/匹配                                                            |
 | 10 | 注册时 `game_id` 写入被注释，用户需走绑定流程才能获得 game_id                                                                                                                  | 🟡 低   | 明确产品流程：注册即写 game_id 或注册后强制引导绑定                                                      |
 | 11 | 验证码限流仅 1 次/分钟，可能影响正常用户多次尝试                                                                                                                               | 🟡 低   | 按场景（注册/登录）差异化：如 5 次/10 分钟                                                               |
-| 12 | 验证码 key 跨类型覆盖：`email:code:{email}` 在 REGISTER/LOGIN 间共用，同一邮箱短时间发送不同类型会互相覆盖                                                                     | 🟠 中   | key 带类型前缀，如 `email:code:{type}:{email}`                                                           |
+| 12 | 验证码 key 跨类型覆盖：`email:code:{email}` 在 REGISTER/LOGIN 间共用，同一邮箱短时间发送不同类型会互相覆盖（EMAIL_REBIND 已用 `email:code:REBIND:{email}` 规避） | 🟠 中   | key 带类型前缀，如 `email:code:{type}:{email}`（REGISTER/LOGIN 待迁移）                                 |
 | 13 | 客户端参数错误（如缺失 query 参数、JSON 解析失败）被 `StatusPages.exception<Throwable>` 统一映射为 `50000 系统繁忙`（`PARAM_ERROR`(40000) 已定义但从未使用）                   | 🟠 中   | 对 `MissingRequestParameterException`/`SerializationException` 单独映射 40000/400 状态                   |
 | 14 | 可选认证路由（`/users/{uid}`、`/servers/{id}/bind`、`/servers/{id}/init`）对**无效 token 放行**：JWT 校验失败后嵌套的 `none` provider 仍设置 principal，请求照常处理且视为匿名 | 🟠 中   | 明确语义：无效 token 应返回 401，或改为"带 token 必须有效"的认证中间件                                   |
 | 15 | `POST /users/{uid}/update` 与改密接口**缺少格式/强度校验**（注册有 RegexEmail/RegexUsernameStrict/密码≥8，更新路径均无；与注册不一致）                                         | 🟡 低   | 更新路径复用注册的校验规则                                                                               |
@@ -1008,25 +1041,59 @@ sequenceDiagram
 | Auth    | POST               | `/auth/register`          | 公开       | ✅                             |
 | Auth    | POST               | `/auth/login/password`    | 公开       | ✅                             |
 | Auth    | POST               | `/auth/login/code`        | 公开       | ✅                             |
-| Auth    | POST               | `/send-code?email=&type=` | 公开       | ✅（RESET_PASSWORD 分支 TODO） |
+| Auth    | POST               | `/send-code?email=&type=` | 公开       | ✅（REGISTER/LOGIN/EMAIL_REBIND；RESET_PASSWORD 分支 TODO） |
 | User    | GET                | `/users/{uid}`            | 可选       | ✅                             |
 | User    | POST               | `/users/{uid}/update`     | JWT        | ✅                             |
 | User    | POST               | `/users/{uid}/avatar`     | JWT        | ✅（multipart ≤1.95 MiB）      |
 | User    | POST               | `/users/{uid}/password`   | JWT        | ✅                             |
+| User    | POST               | `/users/{uid}/email`      | JWT        | ✅（邮箱换绑：新邮箱+验证码）  |
+| User    | POST               | `/users/{uid}/deactivate` | JWT        | ✅（注销账号，软删除）         |
 | User    | GET                | `/contacts`               | JWT        | ⛔ 路由被注释                  |
-| Servers | GET                | `/servers`                | JWT        | ✅                             |
+| Servers | GET                | `/servers`                | 公开      | ✅（匿名可读，脱敏；写操作需 JWT） |
 | Servers | POST               | `/servers`                | JWT        | ✅                             |
-| Servers | GET                | `/servers/{id}`           | JWT        | ✅                             |
+| Servers | GET                | `/servers/{id}`           | 公开      | ✅（匿名可读，脱敏；owner 登录可见完整字段） |
 | Servers | PUT                | `/servers/{id}`           | JWT(owner) | ✅                             |
 | Servers | DELETE             | `/servers/{id}`           | JWT(owner) | ✅                             |
 | Servers | GET                | `/bind-code?name=`        | JWT        | ✅                             |
 | Servers | POST               | `/servers/{id}/bind`      | 无         | ✅                             |
 | Servers | POST               | `/servers/{id}/init`      | 无         | ✅                             |
 | Servers | (publishPublicKey) | -                         | -          | ❌ TODO                        |
+| 成员    | GET                | `/servers/{id}/my-role`   | JWT        | ✅（§9.10）                    |
+| 成员    | GET                | `/servers/{id}/members`   | JWT        | ✅（§9.10）                    |
+| 成员    | POST               | `/servers/{id}/members`   | JWT(owner) | ✅（§9.10）                    |
+| 成员    | PATCH              | `/servers/{id}/members/{userId}` | JWT(owner) | ✅（§9.10）            |
+| 成员    | DELETE             | `/servers/{id}/members/{userId}` | JWT(owner) | ✅（§9.10）           |
+| 成员    | POST               | `/servers/{id}/transfer-ownership` | JWT(owner) | ✅（§9.10）      |
+| 收藏    | POST/DELETE        | `/servers/{id}/favorite`  | JWT        | ✅（§9.11 收藏）               |
+| 收藏    | GET                | `/users/me/favorites`     | JWT        | ✅（§9.11 收藏）               |
+| 截图    | GET                | `/servers/{id}/screenshots` | JWT      | ✅（§9.6）                    |
+| 截图    | POST               | `/servers/{id}/screenshots` | JWT      | ✅（§9.6，multipart）         |
+| 截图    | GET                | `/servers/{id}/screenshots/{sid}/download` | JWT | ✅（§9.6）           |
+| 截图    | POST               | `/servers/{id}/screenshots/{sid}/report` | JWT | ✅（§9.6）            |
+| 截图    | DELETE             | `/servers/{id}/screenshots/{sid}` | JWT(admin) | ✅（§9.6）          |
+| 状态    | POST               | `/servers/{id}/sync/status` | 无(server_key) | ✅（§9.12）          |
+| 玩家    | GET                | `/servers/{id}/players`   | JWT        | ✅（§9.2）                     |
+| Mod     | GET                | `/servers/{id}/mods`      | JWT        | ✅（§9.3）                     |
+| 聊天    | GET                | `/servers/{id}/chat/history` | JWT     | ✅（§9.5）                    |
+| 聊天    | POST               | `/servers/{id}/chat/messages` | JWT     | ✅（§9.5）                    |
+| 聊天    | DELETE             | `/servers/{id}/chat/messages/{mid}` | JWT(admin) | ✅（§9.5）         |
+| 聊天    | WS                 | `/ws/chat?server_id=&token=` | 查询 token | ✅（§9.5，实时广播）       |
+| 存档    | GET/POST           | `/servers/{id}/worlds`    | JWT        | ✅（§9.7）                     |
+| 存档    | GET                | `/servers/{id}/worlds/{wid}/download` | JWT | ✅（§9.7）           |
+| 存档    | PATCH              | `/servers/{id}/worlds/{wid}/set-current` | JWT(admin) | ✅（§9.7） |
+| 存档    | DELETE             | `/servers/{id}/worlds/{wid}` | JWT(admin) | ✅（§9.7）           |
+| 整合包  | GET                | `/servers/{id}/modpack`   | JWT        | ✅（§9.8）                     |
+| 整合包  | GET                | `/servers/{id}/modpack/download` | JWT | ✅（§9.8）                 |
+| 整合包  | POST               | `/servers/{id}/modpack`   | JWT(admin) | ✅（§9.8，multipart）         |
+| 管理    | GET                | `/admin/reports`          | JWT(admin) | ✅（§9.9）                    |
+| 管理    | PATCH              | `/admin/reports/{id}`     | JWT(admin) | ✅（§9.9，41005 重复处理）    |
+| 管理    | GET/POST           | `/servers/{id}/bans`      | JWT(admin) | ✅（§9.9）                    |
+| 管理    | DELETE             | `/servers/{id}/bans/{banId}` | JWT(admin) | ✅（§9.9）                 |
+| 地图    | GET/PUT            | `/servers/{id}/map/config` | JWT / JWT(admin) | ✅（§9.4）          |
+| 地图    | GET                | `/servers/{id}/map/players` | JWT      | ✅（§9.4，Agent 上报坐标）    |
 | 文档    | GET                | `/swagger`（Swagger UI）  | 公开       | ✅                             |
 
-**规划中（未实现）**：玩家列表、Mod 列表、地图、聊天（REST+WS）、截图、存档、整合包、收藏、举报、禁言、服务器成员管理、个人中心数据接口——完整接口与表定义见
-**§9 规划中模块详细设计**。
+**规划中（未实现）**：个人中心数据接口（`/users/me/summary` 等聚合统计，前端用多个真实接口组合）、`publishPublicKey`、Agent 端（`meadow-mod`）状态/玩家坐标上报（后端接口已就绪，等待 Mod 侧实现，见 §9.12、§9.4）。
 
 ### 11.2 依赖版本摘要
 

@@ -117,6 +117,7 @@ fun Route.auth() {
                 SendCodeType.REGISTER -> authService.sendRegisterCode(email)
                 SendCodeType.LOGIN -> authService.sendLoginCode(email)
                 SendCodeType.RESET_PASSWORD -> TODO()
+                SendCodeType.EMAIL_REBIND -> authService.sendEmailRebindCode(email)
             }
             call.respond(response)
         }.describe {
@@ -134,6 +135,7 @@ fun Route.auth() {
                                 SendCodeType.REGISTER -> appendLine("- ${it.name}: 注册")
                                 SendCodeType.LOGIN -> appendLine("- ${it.name}: 登录")
                                 SendCodeType.RESET_PASSWORD -> appendLine("- ${it.name}: 重置密码")
+                                SendCodeType.EMAIL_REBIND -> appendLine("- ${it.name}: 邮箱换绑")
                             }
                         }
                     }

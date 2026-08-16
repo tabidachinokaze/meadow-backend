@@ -23,6 +23,10 @@ class ServerEntity(id: EntityID<Long>) : LongEntity(id) {
     var isVerified by ServerTable.isVerified
     var serverKey by ServerTable.serverKey
     var machineId by ServerTable.machineId
+    var onlinePlayers by ServerTable.onlinePlayers
+    var maxPlayers by ServerTable.maxPlayers
+    var uptimeSeconds by ServerTable.uptimeSeconds
+    var lastStatusAt by ServerTable.lastStatusAt
     var createdAt by ServerTable.createdAt
     var updatedAt by ServerTable.updatedAt
 }

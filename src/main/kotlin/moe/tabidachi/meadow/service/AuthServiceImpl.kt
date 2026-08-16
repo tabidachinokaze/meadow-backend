@@ -114,6 +114,26 @@ class AuthServiceImpl(
         }
     }
 
+    override suspend fun sendEmailRebindCode(email: String): Response<String?> {
+        return when {
+            !RegexEmail.matches(email) -> ValidStatusCode.INVALID_EMAIL.emptyData()
+            userRepository.getByEmail(email) != null -> UserStatusCode.EMAIL_ALREADY_EXISTS.emptyData()
+            else -> {
+                // 带类型前缀的 key，避免与 REGISTER/LOGIN 验证码互相覆盖（已知问题 #12）
+                val code = captchaValidator.generate("email:code:REBIND:${email}")
+                val result = postman.sendVerificationCode(
+                    recipient = email,
+                    code = code
+                )
+                if (result.isSuccess) {
+                    CommonStatusCode.SUCCESS.withData(result.getOrNull())
+                } else {
+                    CommonStatusCode.INTERNAL_SERVER_ERROR.emptyData(message = result.exceptionOrNull()?.message)
+                }
+            }
+        }
+    }
+
     private suspend fun sendCode(email: String): Response<String?> {
         val code = captchaValidator.generate("email:code:${email}")
         val result = postman.sendVerificationCode(

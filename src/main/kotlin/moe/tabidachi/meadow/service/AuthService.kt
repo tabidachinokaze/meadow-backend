@@ -11,4 +11,6 @@ interface AuthService {
     suspend fun loginByCode(request: CodeLoginRequest): Response<String?>
     suspend fun sendRegisterCode(email: String): Response<String?>
     suspend fun sendLoginCode(email: String): Response<String?>
+    /** 邮箱换绑：向新邮箱发送验证码（校验格式 + 未被占用） */
+    suspend fun sendEmailRebindCode(email: String): Response<String?>
 }

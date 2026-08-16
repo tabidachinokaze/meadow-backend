@@ -20,6 +20,10 @@ data class Server(
     val isVerified: Boolean,
     val serverKey: String,
     val machineId: String?,
+    val onlinePlayers: Int = 0,
+    val maxPlayers: Int = 0,
+    val uptimeSeconds: Long = 0,
+    val lastStatusAt: Instant? = null,
     val createdAt: Instant,
     val updatedAt: Instant,
 )

@@ -10,6 +10,8 @@ import kotlin.time.Duration.Companion.minutes
 interface CaptchaValidator {
     suspend fun generate(key: String): String
     suspend fun validate(key: String, value: String): ValidationResult
+    /** 只读取验证码（不消费、不删除），用于避免重复请求覆盖 */
+    suspend fun peek(key: String): String?
 
     enum class ValidationResult {
         CORRECT, ERROR, EXPIRED
@@ -50,6 +52,9 @@ class CaptchaValidatorRedisImpl(
             else -> CaptchaValidator.ValidationResult.ERROR
         }
     }
+
+    override suspend fun peek(key: String): String? =
+        kedisClient.execute(KedisValueCommands.get(key))
 
     private fun generateRandomCode(length: Int): String {
         return (1..length.coerceAtLeast(1))

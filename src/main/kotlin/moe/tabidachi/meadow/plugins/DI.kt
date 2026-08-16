@@ -8,6 +8,18 @@ import io.ktor.server.application.*
 import io.ktor.server.config.*
 import io.ktor.server.plugins.di.*
 import moe.tabidachi.meadow.contract.Qualifier
+import moe.tabidachi.meadow.database.table.BanTable
+import moe.tabidachi.meadow.database.table.ChatMessageTable
+import moe.tabidachi.meadow.database.table.FavoriteTable
+import moe.tabidachi.meadow.database.table.MapConfigTable
+import moe.tabidachi.meadow.database.table.ModTable
+import moe.tabidachi.meadow.database.table.ModpackTable
+import moe.tabidachi.meadow.database.table.PlayerPositionTable
+import moe.tabidachi.meadow.database.table.ReportTable
+import moe.tabidachi.meadow.database.table.ScreenshotTable
+import moe.tabidachi.meadow.database.table.ServerMemberTable
+import moe.tabidachi.meadow.database.table.ServerPlayerTable
+import moe.tabidachi.meadow.database.table.WorldTable
 import moe.tabidachi.meadow.database.table.ServerTable
 import moe.tabidachi.meadow.database.table.UserRelationTable
 import moe.tabidachi.meadow.database.table.UserTable
@@ -107,7 +119,11 @@ fun Application.configureDI() {
         provide<Database> {
             Database.connect(url, driver, user, password).also { db ->
                 transaction(db) {
-                    SchemaUtils.create(UserTable, UserRelationTable, ServerTable)
+                    SchemaUtils.create(
+                        UserTable, UserRelationTable, ServerTable, ServerMemberTable, FavoriteTable,
+                        ScreenshotTable, ServerPlayerTable, ModTable, ChatMessageTable, WorldTable,
+                        ModpackTable, ReportTable, BanTable, MapConfigTable, PlayerPositionTable
+                    )
                 }
             }
         }
@@ -130,6 +146,66 @@ fun Application.configureDI() {
                 encryptor = resolve(Qualifier.AES_ENCRYPTOR)
             )
         }
+        provide<ServerMemberRepository> {
+            ServerMemberRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<FavoriteRepository> {
+            FavoriteRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<ScreenshotRepository> {
+            ScreenshotRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<ServerPlayerRepository> {
+            ServerPlayerRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<ModRepository> {
+            ModRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<ChatMessageRepository> {
+            ChatMessageRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<WorldRepository> {
+            WorldRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<ModpackRepository> {
+            ModpackRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<ReportRepository> {
+            ReportRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<BanRepository> {
+            BanRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<MapConfigRepository> {
+            MapConfigRepositoryImpl(
+                database = resolve()
+            )
+        }
+        provide<PlayerPositionRepository> {
+            PlayerPositionRepositoryImpl(
+                database = resolve()
+            )
+        }
     }
     dependencies {
         provide<AuthService> {
@@ -146,13 +222,107 @@ fun Application.configureDI() {
                 userRepository = resolve(),
                 userRelationRepository = resolve(),
                 encryptor = resolve(Qualifier.ARGON2_ENCRYPTOR),
+                captchaValidator = resolve()
             )
         }
         provide<ServerService> {
             ServerServiceImpl(
                 serverRepository = resolve(),
                 userRepository = resolve(),
-                captchaValidator = resolve()
+                captchaValidator = resolve(),
+                serverMemberRepository = resolve()
+            )
+        }
+        provide<ServerMemberService> {
+            ServerMemberServiceImpl(
+                serverMemberRepository = resolve(),
+                serverRepository = resolve(),
+                userRepository = resolve()
+            )
+        }
+        provide<FavoriteService> {
+            FavoriteServiceImpl(
+                favoriteRepository = resolve(),
+                serverRepository = resolve()
+            )
+        }
+        provide<ScreenshotService> {
+            ScreenshotServiceImpl(
+                screenshotRepository = resolve(),
+                serverRepository = resolve(),
+                serverMemberRepository = resolve(),
+                userRepository = resolve(),
+                storageService = resolve(),
+                reportRepository = resolve()
+            )
+        }
+        provide<ServerStatusService> {
+            ServerStatusServiceImpl(
+                serverRepository = resolve(),
+                serverPlayerRepository = resolve(),
+                modRepository = resolve(),
+                playerPositionRepository = resolve()
+            )
+        }
+        provide<PlayerService> {
+            PlayerServiceImpl(
+                serverPlayerRepository = resolve(),
+                serverRepository = resolve()
+            )
+        }
+        provide<ModService> {
+            ModServiceImpl(
+                modRepository = resolve(),
+                serverRepository = resolve()
+            )
+        }
+        provide<ChatHub> {
+            ChatHub()
+        }
+        provide<ChatService> {
+            ChatServiceImpl(
+                chatMessageRepository = resolve(),
+                serverRepository = resolve(),
+                serverMemberRepository = resolve(),
+                userRepository = resolve(),
+                chatHub = resolve()
+            )
+        }
+        provide<WorldService> {
+            WorldServiceImpl(
+                worldRepository = resolve(),
+                serverRepository = resolve(),
+                serverMemberRepository = resolve(),
+                userRepository = resolve(),
+                storageService = resolve()
+            )
+        }
+        provide<ModpackService> {
+            ModpackServiceImpl(
+                modpackRepository = resolve(),
+                serverRepository = resolve(),
+                serverMemberRepository = resolve(),
+                userRepository = resolve(),
+                storageService = resolve()
+            )
+        }
+        provide<AdminService> {
+            AdminServiceImpl(
+                reportRepository = resolve(),
+                banRepository = resolve(),
+                screenshotRepository = resolve(),
+                serverRepository = resolve(),
+                serverMemberRepository = resolve(),
+                userRepository = resolve()
+            )
+        }
+        provide<MapService> {
+            MapServiceImpl(
+                mapConfigRepository = resolve(),
+                playerPositionRepository = resolve(),
+                serverRepository = resolve(),
+                serverMemberRepository = resolve(),
+                userRepository = resolve()
             )
         }
     }

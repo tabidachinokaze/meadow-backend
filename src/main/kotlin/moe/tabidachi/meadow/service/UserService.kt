@@ -23,6 +23,9 @@ interface UserService {
     suspend fun updateEmail(
         callingUserId: Long,
         targetUserId: Long,
-        request: UpdatePasswordRequest
+        request: moe.tabidachi.meadow.model.request.RebindEmailRequest
     ): Response<UserInfo?>
+
+    /** 注销账号（本人，软删除） */
+    suspend fun deactivateAccount(callingUserId: Long, targetUserId: Long): Response<Long?>
 }

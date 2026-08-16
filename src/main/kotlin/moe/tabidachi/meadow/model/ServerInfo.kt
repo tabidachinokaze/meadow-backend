@@ -36,6 +36,14 @@ data class ServerInfo(
     val serverKey: String?,
     @SerialName("machine_id")
     val machineId: String?,
+    @SerialName("online_players")
+    val onlinePlayers: Int = 0,
+    @SerialName("max_players")
+    val maxPlayers: Int = 0,
+    @SerialName("uptime_seconds")
+    val uptimeSeconds: Long = 0,
+    @SerialName("last_sync_at")
+    val lastSyncAt: Instant? = null,
     @SerialName("created_at")
     val createdAt: Instant?,
     @SerialName("updated_at")

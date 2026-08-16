@@ -1,5 +1,6 @@
 package moe.tabidachi.meadow.plugins
 
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.calllogging.*
 import io.ktor.server.plugins.doublereceive.*
@@ -37,8 +38,13 @@ fun Application.configureMonitoring() {
     val bodyLoggerPlugin = createApplicationPlugin(name = "BodyLoggerPlugin") {
         // Intercept incoming requests
         onCall { call ->
-            val requestBody = call.receiveText()
-            call.application.environment.log.info("Request Body: $requestBody")
+            // WebSocket 升级请求无 body，读取会挂起并干扰握手，跳过
+            val isWebSocketUpgrade = call.request.headers[HttpHeaders.Upgrade]
+                ?.equals("websocket", ignoreCase = true) == true
+            if (!isWebSocketUpgrade) {
+                val requestBody = call.receiveText()
+                call.application.environment.log.info("Request Body: $requestBody")
+            }
         }
 
         // Intercept outgoing responses

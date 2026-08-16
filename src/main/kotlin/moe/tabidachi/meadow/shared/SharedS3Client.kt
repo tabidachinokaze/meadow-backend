@@ -18,6 +18,8 @@ fun SharedS3Client(s3Config: S3Config): S3Client {
             this.host = Host.Domain(s3Config.host)
             this.port = s3Config.port
         }
+        // 自建 S3 兼容服务（RustFS/MinIO）使用 path-style 寻址
+        this.forcePathStyle = true
         this.credentialsProvider = object : CredentialsProvider {
             override suspend fun resolve(attributes: Attributes): Credentials {
                 return Credentials(

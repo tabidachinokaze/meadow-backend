@@ -26,6 +26,10 @@ class ServerMapper(
             isVerified = entity.isVerified,
             serverKey = entity.serverKey,
             machineId = entity.machineId,
+            onlinePlayers = entity.onlinePlayers,
+            maxPlayers = entity.maxPlayers,
+            uptimeSeconds = entity.uptimeSeconds,
+            lastStatusAt = entity.lastStatusAt,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt
         )
@@ -50,7 +54,11 @@ class ServerMapper(
             ownerId = entity.ownerId,
             rconPassword = entity.rconPassword?.let(encryptor::decrypt),
             serverKey = entity.serverKey,
-            machineId = entity.machineId
+            machineId = entity.machineId,
+            onlinePlayers = entity.onlinePlayers,
+            maxPlayers = entity.maxPlayers,
+            uptimeSeconds = entity.uptimeSeconds,
+            lastSyncAt = entity.lastStatusAt
         )
     }
 }
