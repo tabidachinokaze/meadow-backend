@@ -34,10 +34,11 @@ fun Application.configureStatusPages() {
             )
         }
         exception<Throwable> { call, cause ->
-            cause.printStackTrace()
+            // 仅记录详情到服务端日志，对客户端返回固定文案（不泄露内部异常/SQL 细节）
+            call.application.environment.log.error("Unhandled exception: ${cause.message}", cause)
             call.respond(
                 CommonStatusCode.INTERNAL_SERVER_ERROR.emptyData<String>(
-                    message = cause.cause?.message ?: cause.message
+                    message = "系统繁忙，请稍后再试"
                 )
             )
         }

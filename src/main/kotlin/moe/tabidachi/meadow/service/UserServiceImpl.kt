@@ -43,7 +43,7 @@ class UserServiceImpl(
         val userInfos = userRelationRepository.getByUserId(callingUserId).filter {
             it.status == RelationStatus.ACTIVE
         }.mapNotNull {
-            userRepository.getUserInfo(it.targetUserId)
+            userRepository.getUserInfo(it.targetUserId)?.desensitize()
         }
         return CommonStatusCode.SUCCESS.withData(userInfos)
     }

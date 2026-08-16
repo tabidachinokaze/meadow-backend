@@ -193,6 +193,17 @@ erDiagram
 
 ## 3. 统一响应与状态码 [已实现]
 
+### 3.0 全局序列化约定（snake_case）
+
+- **wire 命名统一**：`plugins/Serialization.kt` 配置 `JsonNamingStrategy.SnakeCase`，所有请求/响应 JSON 字段一律 snake_case；
+  显式 `@SerialName` 的字段（如旧 `ServerInfo`）优先于策略，语义一致。
+- **影响范围**：`UserInfo`/`ScreenshotInfo`/`WorldInfo`/`ModpackInfo`/`PlayerInfo`/`ModInfo`/`MapConfigInfo`/
+  `ReportInfo`/`BanInfo`/`UserSummaryInfo`/`ServerMemberInfo`/`MyRoleInfo`（含 Permissions 位）等全部无 `@SerialName` 模型，
+  前端 `meadow-web/src/types/*` 已同步为 snake_case 字段。
+- **WebSocket 帧**：`ChatHub`/`/ws/chat`/`/ws/agent` 使用同一策略（Mod 端 `SharedJson` 亦同步）。
+- **展示层例外**：前端 view model（`Server`/`Player` 等）保持 camelCase，由 `lib/serverView.ts`/各 Tab 的 `toXxx` 转换，
+  与传输层 snake_case 解耦。
+
 ### 3.1 响应结构
 
 ```kotlin
@@ -384,8 +395,8 @@ Argon2； **`game_id` 写入在代码中被注释，当前注册不写入 game_i
   null）。
 - 不存在：40201。
 
-`UserInfo` 字段（ **无 `@SerialName`，按 Kotlin 字段名 camelCase 序列化**）：
-`uid, username, email, phone, avatarUrl, bannerUrl, gameId, role, isActive, lastLogin, createdAt, updatedAt, bio, website, location`
+`UserInfo` 字段（**全局 `JsonNamingStrategy.SnakeCase`，wire 名全 snake_case**）：
+`uid, username, email, phone, avatar_url, banner_url, game_id, role, is_active, last_login, created_at, updated_at, bio, website, location`
 （与前端 `meadow-web/src/types/user.ts` 一致）。
 
 #### 5.2.2 更新用户信息 — `POST /users/{uid}/update`（认证，仅本人）

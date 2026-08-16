@@ -3,6 +3,7 @@ package moe.tabidachi.meadow.service
 import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNamingStrategy
 import moe.tabidachi.meadow.model.ChatMessageInfo
 import java.util.concurrent.ConcurrentHashMap
 
@@ -11,7 +12,11 @@ import java.util.concurrent.ConcurrentHashMap
  * （规划 §9.5.3 / §9.11）
  */
 class ChatHub {
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        // 与 REST 一致：全局 snake_case
+        namingStrategy = JsonNamingStrategy.SnakeCase
+    }
     private val connections = ConcurrentHashMap<Long, MutableMap<String, WebSocketSession>>()
 
     fun connect(serverId: Long, uid: Long, session: WebSocketSession) {

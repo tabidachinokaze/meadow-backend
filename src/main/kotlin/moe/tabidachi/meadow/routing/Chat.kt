@@ -7,6 +7,7 @@ import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNamingStrategy
 import moe.tabidachi.meadow.jwt.Claims
 import moe.tabidachi.meadow.ktx.callingUserId
 import moe.tabidachi.meadow.ktx.getParameter
@@ -61,7 +62,11 @@ fun Route.chatSocket() {
     val chatService: ChatService by application.dependencies
     val jwt: Jwt by application.dependencies
     val serverRepository: moe.tabidachi.meadow.repository.ServerRepository by application.dependencies
-    val json = Json { ignoreUnknownKeys = true }
+    val json = Json {
+        ignoreUnknownKeys = true
+        // 与 REST 一致：全局 snake_case
+        namingStrategy = JsonNamingStrategy.SnakeCase
+    }
 
     webSocket("/ws/chat") {
         val serverId = call.request.queryParameters["server_id"]?.toLongOrNull()
