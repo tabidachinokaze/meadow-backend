@@ -1,28 +1,45 @@
-# meadow 后端部署（cachyos.lan 版）
-# 前置：cachyos.lan 上已运行 postgres / redis / rustfs(S3) 服务，本编排只部署 backend。
-# 用法：docker compose up -d
-# 在 .env 中提供：MEADOW_DB_URL / MEADOW_DB_USER / MEADOW_DB_PASSWORD /
+# meadow 部署（cachyos.lan 版）
+# 前置：postgres / redis / rustfs(S3) 已在宿主机运行（端口 5432/6379/9000），本编排只起 backend + frontend。
+# backend 通过 host.docker.internal 访问宿主机基础设施；frontend(nginx) 同网络反代 backend。
+# 用法：docker compose up -d --build
+# 在 .env 中提供（缺省值见下方；生产必须覆盖）：
+#   MEADOW_DB_URL / MEADOW_DB_USER / MEADOW_DB_PASSWORD / MEADOW_JWT_SECRET / MEADOW_ENCRYPTION_SECRET /
 #   MEADOW_REDIS_HOST / MEADOW_REDIS_PASSWORD / MEADOW_S3_HOST / MEADOW_S3_ACCESS_KEY / MEADOW_S3_SECRET_KEY /
-#   MEADOW_JWT_SECRET / MEADOW_ENCRYPTION_SECRET / MEADOW_RESEND_API_KEY
+#   MEADOW_RESEND_API_KEY / WEB_PORT
 services:
   backend:
     build: .
     container_name: meadow-backend
+    extra_hosts:
+      # Linux 上让容器能访问宿主机（已运行的 postgres/redis/rustfs）
+      - "host.docker.internal:host-gateway"
     environment:
       MEADOW_DEVELOPMENT: "false"
-      MEADOW_DB_URL: ${MEADOW_DB_URL:?必须设置 MEADOW_DB_URL，如 jdbc:postgresql://postgres.cachyos.lan:5432/meadow}
-      MEADOW_DB_USER: ${MEADOW_DB_USER:?必须设置 MEADOW_DB_USER}
-      MEADOW_DB_PASSWORD: ${MEADOW_DB_PASSWORD:?必须设置 MEADOW_DB_PASSWORD}
+      MEADOW_DB_URL: ${MEADOW_DB_URL:-jdbc:postgresql://host.docker.internal:5432/meadow}
+      MEADOW_DB_USER: ${MEADOW_DB_USER:-username}
+      MEADOW_DB_PASSWORD: ${MEADOW_DB_PASSWORD:-password}
       MEADOW_JWT_SECRET: ${MEADOW_JWT_SECRET:?必须设置 MEADOW_JWT_SECRET}
       MEADOW_ENCRYPTION_SECRET: ${MEADOW_ENCRYPTION_SECRET:?必须设置 MEADOW_ENCRYPTION_SECRET}
-      # Redis（cachyos.lan 已有）
-      MEADOW_REDIS_HOST: ${MEADOW_REDIS_HOST:-redis.cachyos.lan}
+      # Redis（宿主机）
+      MEADOW_REDIS_HOST: ${MEADOW_REDIS_HOST:-host.docker.internal}
       MEADOW_REDIS_PASSWORD: ${MEADOW_REDIS_PASSWORD:-}
-      # S3 / RustFS（cachyos.lan 已有，443 反代）
-      MEADOW_S3_HOST: ${MEADOW_S3_HOST:-storage.cachyos.lan}
+      # S3 / RustFS（宿主机）
+      MEADOW_S3_HOST: ${MEADOW_S3_HOST:-host.docker.internal}
       MEADOW_S3_ACCESS_KEY: ${MEADOW_S3_ACCESS_KEY:?必须设置 MEADOW_S3_ACCESS_KEY}
       MEADOW_S3_SECRET_KEY: ${MEADOW_S3_SECRET_KEY:?必须设置 MEADOW_S3_SECRET_KEY}
       MEADOW_RESEND_API_KEY: ${MEADOW_RESEND_API_KEY:-}
     ports:
       - "23333:23333"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../meadow-web
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    container_name: meadow-frontend
+    depends_on:
+      - backend
+    ports:
+      - "${WEB_PORT:-8080}:80"
     restart: unless-stopped
