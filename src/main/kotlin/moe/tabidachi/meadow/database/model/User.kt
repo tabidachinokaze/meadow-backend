@@ -11,6 +11,7 @@ data class User(
     val email: String?,
     val phone: String?,
     val avatarUrl: String?,
+    val bannerUrl: String?,
     val gameId: String?,
     val role: SystemRole,
     val isActive: Boolean,

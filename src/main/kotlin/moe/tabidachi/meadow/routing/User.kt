@@ -159,6 +159,75 @@ fun Route.user() {
         }
     }
 
+    post("/users/{uid}/banner") {
+        val targetUserId = getParameter<Long>("uid")
+        val storageService = call.application.dependencies.resolve<StorageService>()
+        val multipart = call.receiveMultipart()
+        var uploadedUrl: String? = null
+
+        val allowedImageTypes = setOf(
+            ContentType.Image.PNG.toString(),
+            ContentType.Image.JPEG.toString(),
+            "image/webp",
+        )
+
+        multipart.forEachPart { part ->
+            when (part) {
+                is PartData.FileItem -> {
+                    val mimeType = part.contentType?.toString() ?: ContentType.Image.PNG.toString()
+                    val fileBytes = part.provider().toByteArray()
+
+                    if (mimeType in allowedImageTypes && fileBytes.isNotEmpty() && fileBytes.size <= 5 * 1024 * 1000) {
+                        val uniqueFileName = "b_${callingUserId}_${Uuid.random().toHexString()}.png"
+                        uploadedUrl = storageService.uploadAvatar(
+                            bytes = fileBytes,
+                            fileName = uniqueFileName,
+                            contentType = mimeType
+                        )
+                    }
+                }
+
+                else -> {
+                }
+            }
+            part.release.invoke()
+        }
+
+        if (uploadedUrl != null) {
+            val response = userService.updateUserInfo(
+                callingUserId,
+                targetUserId,
+                UpdateUserInfoRequest(bannerUrl = uploadedUrl)
+            )
+            call.respond(response)
+        } else {
+            call.respond(CommonStatusCode.FAILURE.emptyData<UserInfo>())
+        }
+    }.describe {
+        summary = "更新用户 Banner"
+        parameters {
+            path("uid") {
+                description = "用户ID"
+                required = true
+            }
+        }
+        responses {
+            HttpStatusCode.OK {
+                description = buildString {
+                    appendLine("code:")
+                    listOf(
+                        UserStatusCode.USER_NOT_FOUND,
+                        CommonStatusCode.SUCCESS,
+                        CommonStatusCode.FAILURE,
+                        CommonStatusCode.FORBIDDEN
+                    ).forEach {
+                        appendLine("- ${it.code}: ${it.message}")
+                    }
+                }
+            }
+        }
+    }
+
     post<RebindEmailRequest>("/users/{uid}/email") { request ->
         val targetUserId = getParameter<Long>("uid")
         call.respond(userService.updateEmail(callingUserId, targetUserId, request))

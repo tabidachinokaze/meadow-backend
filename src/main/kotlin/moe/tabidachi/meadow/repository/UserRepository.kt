@@ -32,6 +32,7 @@ interface UserRepository {
         email: String? = null,
         phone: String? = null,
         avatarUrl: String? = null,
+        bannerUrl: String? = null,
         gameId: String? = null,
         bio: String? = null,
         website: String? = null,
@@ -112,6 +113,7 @@ class UserRepositoryImpl(
         email: String?,
         phone: String?,
         avatarUrl: String?,
+        bannerUrl: String?,
         gameId: String?,
         bio: String?,
         website: String?,
@@ -122,6 +124,7 @@ class UserRepositoryImpl(
             statement.setIfNotNull(UserTable.email, email)
             statement.setIfNotNull(UserTable.phone, phone)
             statement.setIfNotNull(UserTable.avatarUrl, avatarUrl)
+            statement.setIfNotNull(UserTable.bannerUrl, bannerUrl)
             statement.setIfNotNull(UserTable.gameId, gameId)
             statement.setIfNotNull(UserTable.bio, bio)
             statement.setIfNotNull(UserTable.website, website)

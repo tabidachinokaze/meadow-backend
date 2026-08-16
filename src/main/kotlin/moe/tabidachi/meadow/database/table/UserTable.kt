@@ -10,6 +10,8 @@ object UserTable : LongIdTable(name = "user") {
     val email = varchar("email", 254).uniqueIndex()
     val phone = varchar("phone", 16).uniqueIndex().nullable()
     val avatarUrl = text("avatar_url").nullable()
+    /** 个人主页 Banner 图（自定义链接或上传） */
+    val bannerUrl = text("banner_url").nullable()
     val gameId = varchar("game_id", 64).uniqueIndex().nullable()
     val role = enumeration<SystemRole>("role").default(SystemRole.USER)
     val isActive = bool("is_active").default(true)

@@ -59,8 +59,11 @@ flowchart TB
 - **数据库选择逻辑（注意）**：DI 中 `ktor.development == true` 时选择 `database.test`（H2 文件库），否则 `database.main`
   （PostgreSQL）——即 **开发模式默认连 H2**，与直觉相反。
 - **自动建表**：启动时 `SchemaUtils.create(UserTable, UserRelationTable, ServerTable)`（仅建缺失表，不迁移）。
-- **对象存储**：AWS S3 SDK（Kotlin），`region = "us-east-1"`，endpoint 为 `http://{s3.host}:{s3.port}`（自建 MinIO 风格，非 AWS
-  公有云），凭据来自 `s3.access_key/secret_key`；当前仅用于头像（bucket `avatar`）。
+- **对象存储**：AWS S3 SDK（Kotlin），`region = "us-east-1"`，endpoint 为 `https://{s3.host}:443`（443 反代到自建
+  RustFS 9000，`forcePathStyle=true`），凭据来自 `s3.access_key/secret_key`；当前用于头像/Banner（bucket `avatar`）
+  与截图/存档/整合包。**直链策略（既定方案）**：不用代理路径，一律返回 `https://storage.tabidachi.moe/{bucket}/{key}`
+  形式的 S3 直链；上传返回的对象 URL 由存储桶公开读支撑，列表/下载场景由 `StorageService.presignObjectUrl` 生成
+  15 分钟预签名 URL 返回。
 
 ---
 
@@ -378,12 +381,12 @@ Argon2； **`game_id` 写入在代码中被注释，当前注册不写入 game_i
 - 不存在：40201。
 
 `UserInfo` 字段（ **无 `@SerialName`，按 Kotlin 字段名 camelCase 序列化**）：
-`uid, username, email, phone, avatarUrl, gameId, role, isActive, lastLogin, createdAt, updatedAt, bio, website, location`
+`uid, username, email, phone, avatarUrl, bannerUrl, gameId, role, isActive, lastLogin, createdAt, updatedAt, bio, website, location`
 （与前端 `meadow-web/src/types/user.ts` 一致）。
 
 #### 5.2.2 更新用户信息 — `POST /users/{uid}/update`（认证，仅本人）
 
-请求体（全部可选，至少一项，否则 30000）：`username, email, phone, avatar_url, bio, website, location`。
+请求体（全部可选，至少一项，否则 30000）：`username, email, phone, avatar_url, banner_url, bio, website, location`。
 
 业务逻辑：非本人 → 40102；空请求 → 30000；用户名/邮箱/手机号唯一性冲突 → 40206/40205/40204；通过则更新并返回最新 `UserInfo`。
 
@@ -393,7 +396,14 @@ Argon2； **`game_id` 写入在代码中被注释，当前注册不写入 game_i
 - 流程：接收文件 → 上传 S3（bucket `avatar`，PublicRead）→ 回调更新 `avatar_url`。
 - 失败（无文件/超限/上传失败）：30000。
 
-#### 5.2.4 修改密码 — `POST /users/{uid}/password`（认证，仅本人）
+#### 5.2.4 更新 Banner — `POST /users/{uid}/banner`（认证，multipart）
+
+- 字段：`file`（≤ 5,120,000 字节 ≈ 4.88 MiB，代码为 `5 * 1024 * 1000`；MIME 白名单 PNG/JPEG/WebP）。
+- 流程：接收文件 → 上传 S3（bucket `avatar`，文件名 `b_{uid}_{uuid}.png`）→ 回调更新 `banner_url`。
+- 失败（无文件/超限/类型不符/上传失败）：30000。
+- 前端也支持直接传 `banner_url` 链接（走 5.2.2 更新接口）。
+
+#### 5.2.5 修改密码 — `POST /users/{uid}/password`（认证，仅本人）
 
 请求体：`{ "old_password": "...", "new_password": "..." }`
 
@@ -547,6 +557,9 @@ sequenceDiagram
 - 认证与用户接口走真实后端（`src/api/auth.ts`、`src/api/user.ts`），错误码映射与 §3.2 一致（`src/hooks/useApiError.ts`）。
 - 服务器/个人中心接口暂以 mock 支撑（`src/api/servers.ts`、`src/api/profile.ts`），响应结构与后端 `Response<T>` 一致（
   `code=20000` 成功），后端就绪后替换 `mockResolve` 为真实调用即可。
+- **上传进度**：所有文件上传均带进度条——截图/存档/整合包（`features/servers/components/tabs/*`）、头像/ Banner（
+  `features/profile`）。实现方式：axios `onUploadProgress` 回调 `p => setUploadProgress(p)`，按钮文案显示
+  「上传中... X%」+ 绿色进度条；头像/Banner 上传中在图片区域叠加进度覆盖层。
 
 ### 7.2 游戏模组（meadow-mod）
 
@@ -1049,6 +1062,7 @@ sequenceDiagram
 | User    | GET                | `/users/{uid}`            | 可选       | ✅                             |
 | User    | POST               | `/users/{uid}/update`     | JWT        | ✅                             |
 | User    | POST               | `/users/{uid}/avatar`     | JWT        | ✅（multipart ≤1.95 MiB）      |
+| User    | POST               | `/users/{uid}/banner`     | JWT        | ✅（multipart ≤4.88 MiB，PNG/JPEG/WebP） |
 | User    | POST               | `/users/{uid}/password`   | JWT        | ✅                             |
 | User    | POST               | `/users/{uid}/email`      | JWT        | ✅（邮箱换绑：新邮箱+验证码）  |
 | User    | POST               | `/users/{uid}/deactivate` | JWT        | ✅（注销账号，软删除）         |

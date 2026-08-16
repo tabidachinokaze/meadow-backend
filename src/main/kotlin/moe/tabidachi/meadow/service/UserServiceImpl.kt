@@ -85,6 +85,7 @@ class UserServiceImpl(
                 email = request.email,
                 phone = request.phone,
                 avatarUrl = request.avatarUrl,
+                bannerUrl = request.bannerUrl,
                 bio = request.bio,
                 website = request.website,
                 location = request.location

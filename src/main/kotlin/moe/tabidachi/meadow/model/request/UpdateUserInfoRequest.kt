@@ -13,6 +13,8 @@ data class UpdateUserInfoRequest(
     val phone: String? = null,
     @SerialName("avatar_url")
     val avatarUrl: String? = null,
+    @SerialName("banner_url")
+    val bannerUrl: String? = null,
     @SerialName("bio")
     val bio: String? = null,
     @SerialName("website")
@@ -25,6 +27,7 @@ data class UpdateUserInfoRequest(
         email,
         phone,
         avatarUrl,
+        bannerUrl,
         bio,
         website,
         location,

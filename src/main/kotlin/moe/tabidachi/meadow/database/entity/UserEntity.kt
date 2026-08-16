@@ -13,6 +13,7 @@ class UserEntity(uid: EntityID<Long>) : LongEntity(uid) {
     var email by UserTable.email
     var phone by UserTable.phone
     var avatarUrl by UserTable.avatarUrl
+    var bannerUrl by UserTable.bannerUrl
     var gameId by UserTable.gameId
     var role by UserTable.role
     var isActive by UserTable.isActive
