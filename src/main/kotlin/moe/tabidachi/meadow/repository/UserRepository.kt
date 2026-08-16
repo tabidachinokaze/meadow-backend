@@ -41,8 +41,11 @@ interface UserRepository {
 
     suspend fun updatePassword(uid: Long, password: String): Boolean
 
-    /** 注销账号（软删除：is_active=false） */
+    /** 注销账号（软删除：is_active=false，并递增 token_version 使已签发 token 失效） */
     suspend fun deactivate(uid: Long): Boolean
+
+    /** 递增 token_version，使该用户所有已签发 JWT 立即失效（改密/登出等场景） */
+    suspend fun invalidateTokens(uid: Long): Boolean
 }
 
 class UserRepositoryImpl(
@@ -135,16 +138,34 @@ class UserRepositoryImpl(
     }
 
     override suspend fun updatePassword(uid: Long, password: String): Boolean = database.withTransaction {
+        val currentVersion = UserEntity.find { UserTable.id.eq(uid) }
+            .singleOrNull()?.tokenVersion ?: 0
         val updateCount = UserTable.update({ UserTable.id.eq(uid) }) {
             it[UserTable.password] = encryptor.encrypt(password)
+            // 改密后旧 token 立即失效
+            it[UserTable.tokenVersion] = currentVersion + 1
             it[UserTable.updatedAt] = Clock.System.now()
         }
         updateCount > 0
     }
 
     override suspend fun deactivate(uid: Long): Boolean = database.withTransaction {
+        val currentVersion = UserEntity.find { UserTable.id.eq(uid) }
+            .singleOrNull()?.tokenVersion ?: 0
         val updateCount = UserTable.update({ UserTable.id.eq(uid) }) {
             it[isActive] = false
+            // 注销后旧 token 立即失效
+            it[UserTable.tokenVersion] = currentVersion + 1
+            it[updatedAt] = Clock.System.now()
+        }
+        updateCount > 0
+    }
+
+    override suspend fun invalidateTokens(uid: Long): Boolean = database.withTransaction {
+        val currentVersion = UserEntity.find { UserTable.id.eq(uid) }
+            .singleOrNull()?.tokenVersion ?: 0
+        val updateCount = UserTable.update({ UserTable.id.eq(uid) }) {
+            it[UserTable.tokenVersion] = currentVersion + 1
             it[updatedAt] = Clock.System.now()
         }
         updateCount > 0

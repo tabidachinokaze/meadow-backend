@@ -39,7 +39,10 @@ class AuthServiceImpl(
                         password = request.password,
                         //gameId = request.gameId
                     )
-                    val token = jwt.sign(uid) {
+                    // 新用户 createdAt 用于 token 绑定（删库重建后 uid 可能复用，但 createdAt 不同）
+                    val user = userRepository.getByUid(uid)
+                    val token = jwt.sign(uid, tokenVersion = user?.tokenVersion ?: 0) {
+                        user?.createdAt?.let { withClaim(moe.tabidachi.meadow.jwt.Claims.CREATED_AT, it.epochSeconds) }
                         withExpiresAt(Clock.System.now().plus(7.days).toJavaInstant())
                     }
                     UserStatusCode.SIGN_UP_SUCCESS.withData(token)
@@ -66,7 +69,8 @@ class AuthServiceImpl(
                 ) -> UserStatusCode.PASSWORD_INCORRECT.emptyData()
 
                 else -> {
-                    val token = jwt.sign(user.uid) {
+                    val token = jwt.sign(user.uid, tokenVersion = user.tokenVersion) {
+                        withClaim(moe.tabidachi.meadow.jwt.Claims.CREATED_AT, user.createdAt.epochSeconds)
                         withExpiresAt(Clock.System.now().plus(7.days).toJavaInstant())
                     }
                     userRepository.updateLastLogin(user.uid)
@@ -87,7 +91,8 @@ class AuthServiceImpl(
                     if (user == null) {
                         UserStatusCode.USER_NOT_REGISTERED.emptyData()
                     } else {
-                        val token = jwt.sign(user.uid) {
+                        val token = jwt.sign(user.uid, tokenVersion = user.tokenVersion) {
+                            withClaim(moe.tabidachi.meadow.jwt.Claims.CREATED_AT, user.createdAt.epochSeconds)
                             withExpiresAt(Clock.System.now().plus(7.days).toJavaInstant())
                         }
                         userRepository.updateLastLogin(user.uid)

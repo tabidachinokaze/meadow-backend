@@ -17,6 +17,7 @@ class UserEntity(uid: EntityID<Long>) : LongEntity(uid) {
     var gameId by UserTable.gameId
     var role by UserTable.role
     var isActive by UserTable.isActive
+    var tokenVersion by UserTable.tokenVersion
     var lastLogin by UserTable.lastLogin
     var createdAt by UserTable.createdAt
     var updatedAt by UserTable.updatedAt

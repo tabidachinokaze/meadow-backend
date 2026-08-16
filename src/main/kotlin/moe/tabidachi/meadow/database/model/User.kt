@@ -15,6 +15,7 @@ data class User(
     val gameId: String?,
     val role: SystemRole,
     val isActive: Boolean,
+    val tokenVersion: Int,
     val lastLogin: Instant?,
     val createdAt: Instant,
     val updatedAt: Instant,

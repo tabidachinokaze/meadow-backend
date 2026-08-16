@@ -17,6 +17,7 @@ object UserMapper {
             gameId = entity.gameId,
             role = entity.role,
             isActive = entity.isActive,
+            tokenVersion = entity.tokenVersion,
             lastLogin = entity.lastLogin,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt,

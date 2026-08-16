@@ -58,9 +58,9 @@ class ServerMemberServiceImpl(
         if (serverMemberRepository.getByServerAndUser(serverId, request.userId) != null) {
             return ServerMemberStatusCode.MEMBER_ALREADY_EXISTS.emptyData()
         }
-        // 权限默认值：ADMIN=ADMIN_DEFAULT，MEMBER=MEMBER_DEFAULT；也可由 owner 显式指定
-        val permissions = request.permissions ?: when (request.role) {
-            ServerRole.ADMIN -> MemberPermissions.ADMIN_DEFAULT
+        // 权限分配仅限 ADMIN：MEMBER 忽略请求权限，强制为空权限（与 updateMember 一致）
+        val permissions = when (request.role) {
+            ServerRole.ADMIN -> request.permissions ?: MemberPermissions.ADMIN_DEFAULT
             else -> MemberPermissions.MEMBER_DEFAULT
         }
         val member = serverMemberRepository.add(serverId, request.userId, request.role, permissions)
@@ -102,6 +102,9 @@ class ServerMemberServiceImpl(
             return ServerMemberStatusCode.CANNOT_MODIFY_OWNER.emptyData()
         }
 
+        // 目标最终角色（可能随本次请求变更）
+        val effectiveRole = request.role ?: target.role
+
         // 角色变更
         if (request.role != null) {
             if (request.role == ServerRole.OWNER) {
@@ -111,9 +114,16 @@ class ServerMemberServiceImpl(
                 return CommonStatusCode.FAILURE.emptyData()
             }
         }
-        // 权限变更（role 改为 OWNER 时由 repository 强制全权限）
-        if (request.permissions != null && request.role != ServerRole.OWNER) {
-            if (!serverMemberRepository.updatePermissions(serverId, userId, request.permissions)) {
+        // 权限分配仅限 ADMIN：MEMBER 恒为空权限（role 改为 MEMBER 或本就是 MEMBER 时强制重置）
+        if (effectiveRole == ServerRole.ADMIN) {
+            if (request.permissions != null) {
+                if (!serverMemberRepository.updatePermissions(serverId, userId, request.permissions)) {
+                    return CommonStatusCode.FAILURE.emptyData()
+                }
+            }
+        } else {
+            // MEMBER（或未来其他非 ADMIN 角色）：不允许携带权限位，重置为空权限
+            if (!serverMemberRepository.updatePermissions(serverId, userId, MemberPermissions.MEMBER_DEFAULT)) {
                 return CommonStatusCode.FAILURE.emptyData()
             }
         }

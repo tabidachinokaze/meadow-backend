@@ -15,6 +15,8 @@ object UserTable : LongIdTable(name = "user") {
     val gameId = varchar("game_id", 64).uniqueIndex().nullable()
     val role = enumeration<SystemRole>("role").default(SystemRole.USER)
     val isActive = bool("is_active").default(true)
+    /** token 版本号：改密/注销/删库重建后递增，使已签发的 JWT 立即失效 */
+    val tokenVersion = integer("token_version").default(0)
     val lastLogin = timestamp("last_login").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")

@@ -8,7 +8,7 @@ import moe.tabidachi.meadow.jwt.Claims
 
 interface Jwt {
     val verifier: JWTVerifier
-    fun sign(uid: Long, block: JWTCreator.Builder.() -> Unit = {}): String
+    fun sign(uid: Long, tokenVersion: Int = 0, block: JWTCreator.Builder.() -> Unit = {}): String
 }
 
 class JwtImpl(
@@ -25,9 +25,11 @@ class JwtImpl(
 
     override fun sign(
         uid: Long,
+        tokenVersion: Int,
         block: JWTCreator.Builder.() -> Unit
     ): String = JWT.create()
         .withClaim(Claims.UID, uid)
+        .withClaim(Claims.TOKEN_VERSION, tokenVersion)
         .apply {
             block()
             issuer?.let(::withIssuer)

@@ -270,14 +270,18 @@ data class Response<T>(
 ### 4.1 JWT 认证
 
 - **算法**：HS256（auth0-jwt）。
-- **Claims**：仅 `uid`（+ 标准 `iss`/`aud`/`exp`）。
+- **Claims**：`uid` + `tv`（token_version）+ `ca`（created_at epoch 秒）+ 标准 `iss`/`aud`/`exp`。
 - **有效期**：签发时硬编码 `now + 7 天`（注册/两种登录均相同）；`JwtConfig` 无有效期配置项。
-- **校验**：Ktor `jwt(jwtConfig.name)` 认证器，`validate` 中校验 `audience` 必须包含配置值。
+- **校验**：Ktor `jwt(jwtConfig.name)` 认证器，`validate` 中校验：
+  1. `audience` 必须包含配置值；
+  2. **用户必须存在、`is_active=true`**（删库重建后用户不存在 → 40101）；
+  3. **`tv` 与数据库 `token_version` 一致**（改密/注销/登出时递增 → 旧 token 立即失效）；
+  4. **`ca` 与数据库 `created_at` 一致**（删库重建后 uid 可能复用，但 created_at 不同 → 旧 token 立即失效）。
 - **配置**（`application.yaml`）：`jwt.secret`、`issuer`、`audience`、`realm`。
 - **公开端点**：`/users/{uid}`、`/servers/{id}/bind`、`/servers/{id}/init` 使用 `AuthenticationNames.NONE`（空认证器，可选认证）。
 
 > ⚠️ **问题**：无 refresh_token 机制、无 Token 黑名单（`logout` 未实现）、有效期 7 天且硬编码；开发配置中 `jwt.secret` 为弱密钥（见
-> §9）。
+> §9）。**已修复**：token 与用户状态绑定（存在性/激活/token_version/created_at），删库重建、注销、改密后旧 token 均失效。
 
 ### 4.2 密码哈希（Argon2）
 
