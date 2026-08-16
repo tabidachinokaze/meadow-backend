@@ -12,6 +12,7 @@ class WorldEntity(id: EntityID<Long>) : LongEntity(id) {
     var worldName by WorldTable.worldName
     var worldType by WorldTable.worldType
     var fileSize by WorldTable.fileSize
+    var downloadUrl by WorldTable.downloadUrl
     var isCurrent by WorldTable.isCurrent
     var lastSaved by WorldTable.lastSaved
     var downloadCount by WorldTable.downloadCount

@@ -55,15 +55,22 @@ class WorldServiceImpl(
             worldType = worldType,
             fileSize = bytes.size.toLong(),
             isCurrent = firstWorld,
+            downloadUrl = url,
         )
-        return CommonStatusCode.SUCCESS.withData(world.toInfo(url))
+        return CommonStatusCode.SUCCESS.withData(world.toInfo())
     }
 
     override suspend fun download(serverId: Long, worldId: Long): Response<String?> {
         val world = worldRepository.getById(serverId, worldId)
             ?: return WorldStatusCode.WORLD_NOT_FOUND.emptyData()
         worldRepository.incrementDownload(serverId, worldId)
-        return CommonStatusCode.SUCCESS.emptyData<String>(message = "开始下载存档")
+        // 私有桶：返回预签名 URL 供前端下载
+        val url = world.downloadUrl?.let { runCatching { storageService.presignObjectUrl(it) }.getOrNull() }
+        return if (url != null) {
+            CommonStatusCode.SUCCESS.withData(url)
+        } else {
+            CommonStatusCode.FAILURE.emptyData(message = "文件存储地址无效")
+        }
     }
 
     override suspend fun setCurrent(callerId: Long, serverId: Long, worldId: Long): Response<Long?> {
@@ -106,7 +113,7 @@ class WorldServiceImpl(
         return role == ServerRole.OWNER || role == ServerRole.ADMIN
     }
 
-    private fun moe.tabidachi.meadow.database.model.WorldSave.toInfo(url: String? = null): WorldInfo {
+    private fun moe.tabidachi.meadow.database.model.WorldSave.toInfo(): WorldInfo {
         return WorldInfo(
             id = id,
             serverId = serverId,
@@ -116,7 +123,7 @@ class WorldServiceImpl(
             isCurrent = isCurrent,
             lastSaved = lastSaved,
             downloadCount = downloadCount,
-            downloadUrl = url,
+            downloadUrl = downloadUrl,
             createdAt = createdAt,
             updatedAt = updatedAt,
         )

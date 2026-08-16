@@ -14,6 +14,8 @@ object WorldTable : LongIdTable("world") {
     val worldName = varchar("world_name", 64)
     val worldType = varchar("world_type", 20).default("survival")
     val fileSize = long("file_size").default(0)
+    /** 存储对象 URL（私有桶，下载时生成预签名） */
+    val downloadUrl = text("download_url").nullable()
     val isCurrent = bool("is_current").default(false)
     val lastSaved = timestamp("last_saved")
     val downloadCount = integer("download_count").default(0)

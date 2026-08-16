@@ -23,14 +23,20 @@ class ModpackServiceImpl(
             return ServerStatusCode.SERVER_NOT_EXISTS.emptyData()
         }
         val active = modpackRepository.getActive(serverId)
-        return CommonStatusCode.SUCCESS.withData(active?.toInfo())
+        return CommonStatusCode.SUCCESS.withData(active?.toInfo(withPresignedUrl = true))
     }
 
     override suspend fun download(serverId: Long): Response<String?> {
         val active = modpackRepository.getActive(serverId)
             ?: return ModpackStatusCode.MODPACK_NOT_FOUND.emptyData()
         modpackRepository.incrementDownload(serverId, active.id)
-        return CommonStatusCode.SUCCESS.withData(active.downloadUrl)
+        // 私有桶：返回预签名 URL
+        val url = runCatching { storageService.presignObjectUrl(active.downloadUrl) }.getOrNull()
+        return if (url != null) {
+            CommonStatusCode.SUCCESS.withData(url)
+        } else {
+            CommonStatusCode.FAILURE.emptyData(message = "文件存储地址无效")
+        }
     }
 
     override suspend fun update(
@@ -84,13 +90,20 @@ class ModpackServiceImpl(
         return role == ServerRole.OWNER || role == ServerRole.ADMIN
     }
 
-    private fun moe.tabidachi.meadow.database.model.ServerModpack.toInfo(): ModpackInfo {
+    private suspend fun moe.tabidachi.meadow.database.model.ServerModpack.toInfo(
+        withPresignedUrl: Boolean = false,
+    ): ModpackInfo {
+        val effectiveUrl = if (withPresignedUrl) {
+            runCatching { storageService.presignObjectUrl(downloadUrl) }.getOrNull() ?: downloadUrl
+        } else {
+            downloadUrl
+        }
         return ModpackInfo(
             id = id,
             serverId = serverId,
             version = version,
             releaseDate = releaseDate,
-            downloadUrl = downloadUrl,
+            downloadUrl = effectiveUrl,
             fileSize = fileSize,
             md5Hash = md5Hash,
             changelog = changelog,

@@ -2,11 +2,15 @@ package moe.tabidachi.meadow.service
 
 import aws.sdk.kotlin.services.s3.S3Client
 import aws.sdk.kotlin.services.s3.model.CreateBucketRequest
+import aws.sdk.kotlin.services.s3.model.GetObjectRequest
 import aws.sdk.kotlin.services.s3.model.HeadBucketRequest
 import aws.sdk.kotlin.services.s3.model.PutObjectRequest
+import aws.sdk.kotlin.services.s3.presigners.presignGetObject
 import aws.smithy.kotlin.runtime.content.ByteStream
 import io.ktor.http.*
 import moe.tabidachi.meadow.model.config.S3Config
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 interface StorageService {
     suspend fun uploadAvatar(
@@ -29,6 +33,12 @@ interface StorageService {
         fileName: String,
         contentType: String,
     ): String
+
+    /** 生成对象预签名 GET URL（私有桶临时访问，默认 15 分钟） */
+    suspend fun presignedUrl(bucket: String, key: String, expiresIn: Duration = 15.minutes): String
+
+    /** 从存储 URL（bucket/key 路径式）生成预签名 URL */
+    suspend fun presignObjectUrl(objectUrl: String, expiresIn: Duration = 15.minutes): String
 }
 
 class S3Service(
@@ -120,5 +130,27 @@ class S3Service(
             port = s3Config.port
             path(bucketName, objectKey)
         }.buildString()
+    }
+
+    override suspend fun presignedUrl(bucket: String, key: String, expiresIn: Duration): String {
+        val bucketName = bucket
+        val objectKey = key
+        val request = GetObjectRequest {
+            this.bucket = bucketName
+            this.key = objectKey
+        }
+        val signed = s3Client.presignGetObject(request, expiresIn)
+        // 预签名 URL 直接可用（forcePathStyle 下已含 bucket 路径与签名参数）
+        return signed.url.toString()
+    }
+
+    override suspend fun presignObjectUrl(objectUrl: String, expiresIn: Duration): String {
+        // 存储 URL 形如 http://host:port/{bucket}/{key}
+        val path = objectUrl.substringAfter("://").substringAfter("/") // bucket/key...
+        val parts = path.split("/")
+        if (parts.size < 2) return objectUrl
+        val bucketName = parts[0]
+        val key = parts.drop(1).joinToString("/")
+        return presignedUrl(bucketName, key, expiresIn)
     }
 }

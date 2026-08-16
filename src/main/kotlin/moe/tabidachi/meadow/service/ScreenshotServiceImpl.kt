@@ -29,7 +29,7 @@ class ScreenshotServiceImpl(
         }
         val serverName = serverRepository.getServerInfo(serverId)?.name
         val list = screenshotRepository.getByServer(serverId, uploaderId, status)
-            .map { it.toInfo(serverName) }
+            .map { it.toInfo(serverName, withPresignedUrl = true) }
         return CommonStatusCode.SUCCESS.withData(list)
     }
 
@@ -64,7 +64,7 @@ class ScreenshotServiceImpl(
             coordinates = coordinates,
         )
         return CommonStatusCode.SUCCESS.withData(
-            shot.toInfo(serverRepository.getServerInfo(serverId)?.name)
+            shot.toInfo(serverRepository.getServerInfo(serverId)?.name, withPresignedUrl = true)
         )
     }
 
@@ -72,7 +72,9 @@ class ScreenshotServiceImpl(
         val shot = screenshotRepository.getById(serverId, screenshotId)
             ?: return ScreenshotStatusCode.SCREENSHOT_NOT_FOUND.emptyData()
         screenshotRepository.incrementDownload(serverId, screenshotId)
-        return CommonStatusCode.SUCCESS.withData(shot.imageUrl)
+        val url = runCatching { storageService.presignObjectUrl(shot.imageUrl) }.getOrNull()
+            ?: return CommonStatusCode.FAILURE.emptyData(message = "文件存储地址无效")
+        return CommonStatusCode.SUCCESS.withData(url)
     }
 
     override suspend fun report(
@@ -110,7 +112,7 @@ class ScreenshotServiceImpl(
 
     override suspend fun getMyScreenshots(callerId: Long): Response<List<ScreenshotInfo>?> {
         val list = screenshotRepository.getByUploader(callerId).map { shot ->
-            shot.toInfo(serverRepository.getServerInfo(shot.serverId)?.name)
+            shot.toInfo(serverRepository.getServerInfo(shot.serverId)?.name, withPresignedUrl = true)
         }
         return CommonStatusCode.SUCCESS.withData(list)
     }
@@ -125,14 +127,23 @@ class ScreenshotServiceImpl(
         return role == ServerRole.OWNER || role == ServerRole.ADMIN
     }
 
-    private fun moe.tabidachi.meadow.database.model.Screenshot.toInfo(serverName: String?): ScreenshotInfo {
+    private suspend fun moe.tabidachi.meadow.database.model.Screenshot.toInfo(
+        serverName: String?,
+        withPresignedUrl: Boolean = false,
+    ): ScreenshotInfo {
+        // 私有桶：展示时生成预签名 URL（15 分钟有效）
+        val effectiveUrl = if (withPresignedUrl) {
+            runCatching { storageService.presignObjectUrl(imageUrl) }.getOrNull() ?: imageUrl
+        } else {
+            imageUrl
+        }
         return ScreenshotInfo(
             id = id,
             serverId = serverId,
             serverName = serverName,
             uploaderId = uploaderId,
             uploaderName = uploaderName,
-            imageUrl = imageUrl,
+            imageUrl = effectiveUrl,
             description = description,
             coordinates = coordinates,
             status = status,

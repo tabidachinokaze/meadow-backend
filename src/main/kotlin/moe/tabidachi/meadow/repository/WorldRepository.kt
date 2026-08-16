@@ -22,6 +22,7 @@ interface WorldRepository {
         worldType: String,
         fileSize: Long,
         isCurrent: Boolean,
+        downloadUrl: String?,
     ): WorldSave
     suspend fun incrementDownload(serverId: Long, worldId: Long): Boolean
     suspend fun setCurrent(serverId: Long, worldId: Long): Boolean
@@ -48,6 +49,7 @@ class WorldRepositoryImpl(
         worldType: String,
         fileSize: Long,
         isCurrent: Boolean,
+        downloadUrl: String?,
     ): WorldSave = database.withTransaction {
         val now = Clock.System.now()
         val entity = WorldEntity.new {
@@ -55,6 +57,7 @@ class WorldRepositoryImpl(
             this.worldName = worldName
             this.worldType = worldType
             this.fileSize = fileSize
+            this.downloadUrl = downloadUrl
             this.isCurrent = isCurrent
             this.lastSaved = now
             this.createdAt = now

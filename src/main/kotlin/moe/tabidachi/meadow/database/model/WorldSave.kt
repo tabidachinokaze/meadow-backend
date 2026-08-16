@@ -14,6 +14,7 @@ data class WorldSave(
     val isCurrent: Boolean,
     val lastSaved: Instant,
     val downloadCount: Int,
+    val downloadUrl: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )

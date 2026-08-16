@@ -14,6 +14,7 @@ object WorldMapper {
             isCurrent = entity.isCurrent,
             lastSaved = entity.lastSaved,
             downloadCount = entity.downloadCount,
+            downloadUrl = entity.downloadUrl,
             createdAt = entity.createdAt,
             updatedAt = entity.updatedAt,
         )
