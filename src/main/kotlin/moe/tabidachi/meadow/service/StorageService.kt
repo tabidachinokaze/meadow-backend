@@ -130,13 +130,8 @@ class S3Service(
     }
 
     private fun buildUrl(bucketName: String, objectKey: String): String {
-        return URLBuilder().apply {
-            // 与 SharedS3Client endpoint 一致：协议/端口由配置决定（生产 443 反代 https，自建 http）
-            protocol = if (s3Config.scheme.equals("http", ignoreCase = true)) URLProtocol.HTTP else URLProtocol.HTTPS
-            host = s3Config.host
-            port = s3Config.port
-            path(bucketName, objectKey)
-        }.buildString()
+        // 直链使用公开访问地址（浏览器可达）；后端连接仍用 s3Config.host（内网）
+        return "${s3Config.publicBase()}/$bucketName/$objectKey"
     }
 
     override suspend fun presignedUrl(bucket: String, key: String, expiresIn: Duration): String {
